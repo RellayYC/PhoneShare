@@ -4,14 +4,13 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
 const exePath = join(dist, 'PhoneShare.exe');
 const zip = join(dist, 'PhoneShare-Windows.zip');
-const pkg = join(homedir(), '.nuget/packages/microsoft.web.webview2/1.0.4314.35');
+const pkg = join(root, '.tools/nuget/microsoft.web.webview2/1.0.4314.35');   // desktop/build.ps1 keeps packages there
 
 function fail(msg) { console.log('DESKTOP BUILD FAILED: ' + msg); process.exit(1); }
 function check(ok, what) { if (!ok) fail(what); console.log('ok  ' + what); }
