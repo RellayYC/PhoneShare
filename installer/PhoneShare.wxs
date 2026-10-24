@@ -5,7 +5,8 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Package Name="PhoneShare" Manufacturer="PhoneShare" Version="$(Version)" UpgradeCode="8E8B0BFD-51F1-442A-AECF-3043F0C6D9F9"
              Scope="perUser" Language="1049" Codepage="1251" Compressed="yes">
-        <MajorUpgrade DowngradeErrorMessage="Уже установлена более новая версия PhoneShare. Сначала удали её." />
+        <!-- same version too: a rebuilt MSI gets a new ProductCode and must replace the install, not sit beside it -->
+        <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="Уже установлена более новая версия PhoneShare. Сначала удали её." />
         <MediaTemplate EmbedCab="yes" />
 
         <Icon Id="app.ico" SourceFile="..\desktop\app.ico" />

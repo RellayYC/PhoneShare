@@ -1,7 +1,7 @@
 // Checks the MSI install on this PC: Windows Installer has PhoneShare VERSION registered, its folder (HKCU
 // Software\PhoneShare\Setup InstallDir) is off the system drive, the exe there is byte for byte dist/PhoneShare.exe,
 // and the Start menu and desktop shortcuts open it. Read-only: install first, e.g.
-//   msiexec /i dist\PhoneShare-x.y.z-x64.msi INSTALLFOLDER=W:\PhoneShare\App\
+//   msiexec /i dist\PhoneShare-x.y.z-x64.msi INSTALLFOLDER=W:\PhoneShare\
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';

@@ -43,6 +43,7 @@ $si = $db.GetType().InvokeMember('SummaryInformation', 'GetProperty', $null, $db
   links = rows 'SELECT Shortcut, Directory_, Target FROM Shortcut'
   search = rows 'SELECT Property, Signature_ FROM AppSearch'
   reg = rows 'SELECT Signature_, Root, \`Key\`, Name FROM RegLocator'
+  upgrade = rows 'SELECT VersionMax, Attributes, ActionProperty FROM \`Upgrade\`'
   words = $si.GetType().InvokeMember('Property', 'GetProperty', $null, $si, @(15))
   template = $si.GetType().InvokeMember('Property', 'GetProperty', $null, $si, @(7))
 } | ConvertTo-Json -Compress -Depth 5`, { MSI: msi });
@@ -65,6 +66,11 @@ check(t.links.length === 2 && where.ProgramMenuFolder === '[INSTALLFOLDER]PhoneS
 const [found] = t.search, [loc] = t.reg;
 check(t.search.length === 1 && found[0] === 'INSTALLFOLDER' && loc && loc[0] === found[1] && loc[1] === '1' && loc[2] === 'Software\\PhoneShare\\Setup' && loc[3] === 'InstallDir',
   'an upgrade takes INSTALLFOLDER from HKCU Software\\PhoneShare\\Setup InstallDir: ' + JSON.stringify([found, loc]));
+
+// msidbUpgradeAttributesVersionMaxInclusive (0x200): a rebuild of the installed version replaces it instead of installing beside it
+const replaces = t.upgrade.find(([max, , prop]) => prop === 'WIX_UPGRADE_DETECTED');
+check(replaces && replaces[0] === version && (Number(replaces[1]) & 0x200) === 0x200,
+  'the upgrade also replaces an install of the same version: ' + JSON.stringify(t.upgrade));
 
 // what the MSI would put on disk: its cabinet unpacked by WiX itself, without Windows Installer
 const tmp = mkdtempSync(join(root, 'dev', '.out', 'msi-'));
