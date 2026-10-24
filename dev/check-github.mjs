@@ -4,6 +4,7 @@
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REPO, versionCode } from '../installer/release.mjs';
@@ -12,6 +13,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 function fail(msg) { console.log('GITHUB FAILED: ' + msg); process.exit(1); }
 function check(ok, what) { if (!ok) fail(what); console.log('ok  ' + what); }
 const gh = (path) => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8' }) || 'null');
+// Node gives each address 250 ms by default; GitHub's asset CDN takes ~300 ms to answer a connect from here
+setDefaultAutoSelectFamilyAttemptTimeout(5000);
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 const repo = gh(`repos/${REPO}`);
