@@ -8,6 +8,8 @@ $jar = Join-Path $sdk 'platforms\android-36\android.jar'
 $jdk = if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\javac.exe")) { $env:JAVA_HOME } else { 'W:\jdk' }
 $env:JAVA_HOME = $jdk
 $env:PATH = "$jdk\bin;$env:PATH"   # d8 and apksigner need Java 11+
+# scratch files stay inside the project, off the system drive
+$env:TEMP = $env:TMP = (New-Item -ItemType Directory -Force (Join-Path $root 'dev\.out\tmp')).FullName
 
 function Run($exe) {
     & $exe @args

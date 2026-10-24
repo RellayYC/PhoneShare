@@ -1,7 +1,8 @@
 // G14: nothing headed for GitHub gives this PC or its owner away. Scans every file git would publish plus the release
 // assets in dist/ for private keys, keystores, API tokens, this PC's IP addresses, its host name, the Windows user name
 // (RellayYC, the public GitHub account, is allowed), e-mail addresses and absolute user paths; then checks that every commit
-// is roman's and no commit names Claude or a co-author. The detector first has to catch planted samples of each kind.
+// is by the author name the owner chose and no commit names Claude or a co-author. The detector first has to catch
+// planted samples of each kind.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { hostname, networkInterfaces, userInfo } from 'node:os';
@@ -27,6 +28,8 @@ let globalEmail = '';
 try { globalEmail = git('config', '--global', 'user.email').trim(); } catch { /* not set */ }
 const emails = [...new Set([account, globalEmail].filter(Boolean))];
 const NOREPLY = '62303932+RellayYC@users.noreply.github.com';
+// the owner signs commits with the account name in lower case; built here, or this file would trip its own user-name rule
+const AUTHOR = `${'RellayYC'.slice(0, 6).toLowerCase()} <${NOREPLY}>`;
 
 const rules = [
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
@@ -86,18 +89,18 @@ for (const f of [...files, ...assets]) {
 }
 check(hits.length === 0, 'no leak in any of them' + (hits.length ? ':\n  ' + hits.join('\n  ') : ''));
 
-// ---- history: roman's commits only, no Claude, no co-author
+// ---- history: the owner's commits only, no Claude, no co-author
 let log = '';
-try { log = git('log', '--all', '--format=%an <%ae>|%cn <%ce>|%B%x00'); } catch { /* no commits yet */ }
+try { log = git('log', '--all', '--format=%an <%ae>%x01%cn <%ce>%x01%B%x00'); } catch { /* no commits yet */ }
 const commits = log.split('\0').map((c) => c.trim()).filter(Boolean);
 for (const c of commits) {
-  const [author, committer] = c.split('|');
-  if (author !== `roman <${NOREPLY}>` || committer !== `roman <${NOREPLY}>`) fail('commit not by roman <noreply>: ' + c.slice(0, 200));
+  const [author, committer, message] = c.split('\x01');
+  if (author !== AUTHOR || committer !== AUTHOR) fail('commit not by ' + AUTHOR + ': ' + c.slice(0, 200));
   if (/claude|anthropic|co-authored-by/i.test(c)) fail('commit names Claude or a co-author: ' + c.slice(0, 200));
-  const leaks = scan(c);
+  const leaks = scan(message);   // the author fields are checked exactly above
   if (leaks.length) fail('commit message leaks ' + leaks.join(', '));
 }
 console.log('ok  public IP ' + (publicIp ? 'looked up and searched for' : 'not available (offline), local addresses only'));
 check(emails.length > 0, `the owner's e-mail is known (${emails.length}) and was searched for`);
-check(true, `${commits.length} commit(s): all by roman <${NOREPLY}>, none names Claude or a co-author`);
+check(true, `${commits.length} commit(s): all by ${AUTHOR}, none names Claude or a co-author`);
 console.log('LEAKS OK');

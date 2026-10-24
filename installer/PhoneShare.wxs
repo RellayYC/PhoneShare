@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Per-user MSI: %LOCALAPPDATA%\Programs\PhoneShare, Start-menu and desktop shortcuts, no admin rights and no dialogs.
+     Another folder: msiexec /i PhoneShare-x.y.z-x64.msi INSTALLFOLDER=D:\Apps\PhoneShare; later versions find it in HKCU.
      The updater (desktop/Updater.cs) runs it with /passive; a double-click installs and starts PhoneShare. -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Package Name="PhoneShare" Manufacturer="PhoneShare" Version="$(Version)" UpgradeCode="8E8B0BFD-51F1-442A-AECF-3043F0C6D9F9"
@@ -12,6 +13,11 @@
         <Property Id="ARPNOMODIFY" Value="1" />
         <Property Id="ARPNOREPAIR" Value="1" />
         <Property Id="ARPURLINFOABOUT" Value="https://github.com/RellayYC/PhoneShare" />
+
+        <!-- an upgrade goes where the installed version is, not back to the default folder -->
+        <Property Id="INSTALLFOLDER">
+            <RegistrySearch Id="InstalledDir" Root="HKCU" Key="Software\PhoneShare\Setup" Name="InstallDir" Type="raw" />
+        </Property>
 
         <StandardDirectory Id="LocalAppDataFolder">
             <Directory Id="ProgramsDir" Name="Programs">

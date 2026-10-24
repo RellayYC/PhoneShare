@@ -759,8 +759,10 @@ namespace PhoneShare
                         }
                     }
                 }
-                catch (Exception ex) when (ex is COMException || ex is InvalidCastException
-                    || ex is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+                // best effort: any failure means "not found". The app list changes under the loop while an installer adds
+                // shortcuts (InvalidComObjectException right after the MSI starts PhoneShare), and on this thread an
+                // exception would end the whole process
+                catch (Exception) { }
             }) { IsBackground = true };
             t.SetApartmentState(ApartmentState.STA);
             t.Start();

@@ -4,7 +4,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +41,8 @@ $si = $db.GetType().InvokeMember('SummaryInformation', 'GetProperty', $null, $db
   props = rows 'SELECT Property, Value FROM Property'
   dirs = rows 'SELECT Directory, Directory_Parent, DefaultDir FROM Directory'
   links = rows 'SELECT Shortcut, Directory_, Target FROM Shortcut'
+  search = rows 'SELECT Property, Signature_ FROM AppSearch'
+  reg = rows 'SELECT Signature_, Root, \`Key\`, Name FROM RegLocator'
   words = $si.GetType().InvokeMember('Property', 'GetProperty', $null, $si, @(15))
   template = $si.GetType().InvokeMember('Property', 'GetProperty', $null, $si, @(7))
 } | ConvertTo-Json -Compress -Depth 5`, { MSI: msi });
@@ -61,10 +62,14 @@ const where = Object.fromEntries(t.links.map(([, d, target]) => [d, target]));
 check(t.links.length === 2 && where.ProgramMenuFolder === '[INSTALLFOLDER]PhoneShare.exe' && where.DesktopFolder === '[INSTALLFOLDER]PhoneShare.exe',
   'Start-menu and desktop shortcuts open [INSTALLFOLDER]PhoneShare.exe');
 
+const [found] = t.search, [loc] = t.reg;
+check(t.search.length === 1 && found[0] === 'INSTALLFOLDER' && loc && loc[0] === found[1] && loc[1] === '1' && loc[2] === 'Software\\PhoneShare\\Setup' && loc[3] === 'InstallDir',
+  'an upgrade takes INSTALLFOLDER from HKCU Software\\PhoneShare\\Setup InstallDir: ' + JSON.stringify([found, loc]));
+
 // what the MSI would put on disk: its cabinet unpacked by WiX itself, without Windows Installer
-const tmp = mkdtempSync(join(tmpdir(), 'ps-msi-'));
+const tmp = mkdtempSync(join(root, 'dev', '.out', 'msi-'));
 try {
-  const d = spawnSync('wix', ['msi', 'decompile', msi, '-x', tmp, '-o', join(tmp, 'out.wxs')], { encoding: 'utf8' });
+  const d = spawnSync(join(root, '.tools', 'wix', 'wix.exe'), ['msi', 'decompile', msi, '-x', tmp, '-o', join(tmp, 'out.wxs')], { encoding: 'utf8' });
   check(d.status === 0, 'wix msi decompile unpacks it, exit ' + d.status);
   const files = readdirSync(join(tmp, 'File'));
   check(files.length === 1 && files[0] === 'PhoneShareExe', 'the MSI holds one file, PhoneShareExe: ' + files.join(', '));

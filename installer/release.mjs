@@ -7,7 +7,6 @@ import { createHash, sign } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 export const REPO = 'RellayYC/PhoneShare';
@@ -41,7 +40,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(join(root, 'VERSION'), version + '\n');
   for (const s of ['android/build.ps1', 'desktop/build.ps1', 'installer/build.ps1']) run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', s]);
   const msi = join(root, 'dist', `PhoneShare-${version}-x64.msi`), exe = join(root, 'dist', 'PhoneShare.exe'), apk = join(root, 'dist', 'PhoneShare.apk');
-  const tmp = mkdtempSync(join(tmpdir(), 'ps-')), file = join(tmp, 'latest.txt');
+  const tmp = mkdtempSync(join(root, 'dist', 'release-')), file = join(tmp, 'latest.txt');
   writeFileSync(file, latest({ version, msi, exe, apk }));
   try {
     if (git('status', '--porcelain')) { run('git', ['commit', '-am', `PhoneShare ${version}`]); }

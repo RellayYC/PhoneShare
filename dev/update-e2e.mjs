@@ -1,7 +1,8 @@
 // G16/G17: the Windows app updating itself from a local stand-in for GitHub Releases, signed with the real key.
 //   node dev/update-e2e.mjs portable    a copy in a test folder (not the MSI's): it swaps in the new exe
-//   node dev/update-e2e.mjs installed   installs the 0.0.1 MSI for this user, updates to 0.0.2 through the MSI, uninstalls;
-//                                       run it only where no real PhoneShare is installed (it would be replaced)
+//   node dev/update-e2e.mjs installed   installs the 0.0.1 MSI for this user into dev/.out/update/installed, updates it to
+//                                       0.0.2 through the MSI, uninstalls; a real PhoneShare install is removed first
+//                                       and put back afterwards from dist (same folder), so it must not be running
 // Builds 0.0.1 and 0.0.2 under dev/.out/update. Checks: a release with a broken signature is ignored; a signed newer one is
 // offered on the home screen; the click downloads it, the app quits and starts again as 0.0.2 and says so; 0.0.2 offers nothing.
 import { spawn, spawnSync } from 'node:child_process';
@@ -33,6 +34,12 @@ const pidsOf = (exe) => spawnSync('powershell', ['-NoProfile', '-Command',
   `@(Get-Process PhoneShare -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $env:F } | ForEach-Object Id) -join ','`],
   { encoding: 'utf8', env: { ...process.env, F: exe } }).stdout.trim().split(',').filter(Boolean).map(Number);
 const msiexec = (args) => spawnSync('msiexec.exe', args, { encoding: 'utf8' }).status;
+const installDir = () => (/InstallDir\s+REG_SZ\s+(.+)/.exec(spawnSync('reg', ['query', 'HKCU\\Software\\PhoneShare\\Setup', '/v', 'InstallDir'],
+  { encoding: 'utf8' }).stdout) || [])[1]?.trim();
+/** Product codes of every installed PhoneShare (the MSI's UpgradeCode). */
+const products = () => spawnSync('powershell', ['-NoProfile', '-Command', `$i = New-Object -ComObject WindowsInstaller.Installer
+@($i.GetType().InvokeMember('RelatedProducts', 'GetProperty', $null, $i, @('{8E8B0BFD-51F1-442A-AECF-3043F0C6D9F9}'))) -join ','`],
+  { encoding: 'utf8' }).stdout.trim().split(',').filter(Boolean);
 
 async function waitUntil(fn, ms, what) {
   const end = Date.now() + ms;
@@ -79,18 +86,28 @@ await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
 const env = { ...process.env, PHONESHARE_HOME: home, PHONESHARE_UPDATE_URL: `http://127.0.0.1:${server.address().port}`,
   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${DEBUG_PORT}` };
 
-let exe, proc, cdp, ok = false;
+let exe, proc, cdp, ok = false, real;
 try {
   if (mode === 'portable') {
     exe = join(dir, 'run', 'PhoneShare.exe');
     mkdirSync(join(dir, 'run'), { recursive: true });
     copyFileSync(join(dir, '0.0.1', 'PhoneShare.exe'), exe);
   } else {
-    const reg = spawnSync('reg', ['query', 'HKCU\\Software\\PhoneShare\\Setup', '/v', 'InstallDir'], { encoding: 'utf8' });
-    if (reg.status === 0) fail('PhoneShare is installed on this PC already; this test would replace it. Uninstall it first.');
-    const code = msiexec(['/i', join(dir, '0.0.1', 'PhoneShare-0.0.1-x64.msi'), '/qn']);
-    check(code === 0, 'MSI 0.0.1 installs for this user, exit ' + code);
-    exe = join(process.env.LOCALAPPDATA, 'Programs', 'PhoneShare', 'PhoneShare.exe');
+    const found = installDir();
+    if (found) {
+      // the test's 0.0.1 cannot go over a newer real install: take it off now, put it back from dist in finally
+      const back = join(root, 'dist', `PhoneShare-${readFileSync(join(root, 'VERSION'), 'utf8').trim()}-x64.msi`);
+      if (!existsSync(back)) fail('PhoneShare is installed here and there is no ' + back + ' to put it back from');
+      if (pidsOf(join(found, 'PhoneShare.exe')).length) fail('close the installed PhoneShare first: ' + found);
+      real = found;
+      for (const p of products()) msiexec(['/x', p, '/qn']);
+      check(!installDir(), 'the real install in ' + real + ' is removed for the test');
+    }
+    // into a folder of its own (not the default under %LOCALAPPDATA%), which the 0.0.2 upgrade has to find again
+    const target = join(dir, 'installed');
+    const code = msiexec(['/i', join(dir, '0.0.1', 'PhoneShare-0.0.1-x64.msi'), '/qn', `INSTALLFOLDER=${target}\\`]);
+    check(code === 0, 'MSI 0.0.1 installs for this user into ' + target + ', exit ' + code);
+    exe = join(target, 'PhoneShare.exe');
   }
   check(existsSync(exe) && fileVersion(exe).startsWith('0.0.1.'), 'running 0.0.1 from ' + exe);
   proc = spawn(exe, [], { env, stdio: 'ignore' });
@@ -128,6 +145,7 @@ try {
   if (mode === 'installed') {
     const reg = spawnSync('reg', ['query', 'HKCU\\Software\\PhoneShare\\Setup', '/v', 'Version'], { encoding: 'utf8' }).stdout;
     check(/0\.0\.2/.test(reg), 'Windows Installer has 0.0.2 registered');
+    check(!existsSync(join(process.env.LOCALAPPDATA, 'Programs', 'PhoneShare')), 'the upgrade stayed in its folder, nothing went to the default one');
   }
   killTree(pid);
   ok = true;
@@ -141,6 +159,11 @@ try {
   if (mode === 'installed') {
     await sleep(1000);
     for (const v of ['0.0.2', '0.0.1']) msiexec(['/x', join(dir, v, `PhoneShare-${v}-x64.msi`), '/qn']);
+    if (real) {
+      const code = msiexec(['/i', join(root, 'dist', `PhoneShare-${readFileSync(join(root, 'VERSION'), 'utf8').trim()}-x64.msi`), '/qn', `INSTALLFOLDER=${real}`]);
+      if (code !== 0 || installDir() !== real) { console.log(`putting the real install back into ${real} failed, exit ${code}`); ok = false; }
+      else console.log('ok  the real install is back in ' + real);
+    }
   }
 }
 console.log(ok ? TAG + ' OK' : TAG + ' FAILED');

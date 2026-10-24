@@ -36,6 +36,8 @@
 
 1. Поставь `PhoneShare-x.y.z-x64.msi` (ярлыки появятся в «Пуске» и на рабочем столе) или просто запусти
    `PhoneShare.exe` из любой папки. Права администратора не нужны ни там, ни там.
+   MSI ставит в `%LOCALAPPDATA%\Programs\PhoneShare`; другая папка задаётся так (обновления её запомнят):
+   `msiexec /i PhoneShare-x.y.z-x64.msi INSTALLFOLDER=W:\PhoneShare\App\`.
 2. Телефон с запущенной трансляцией появится сам: карточка в форме телефона, после первого показа — с кадром
    его экрана. Нажми на карточку и введи PIN. С галочкой «Запомнить» PIN в следующий раз не спросят.
 3. В плеере: F — полный экран (Esc — выход), M — звук, S — скриншот в «Изображения\PhoneShare»,
@@ -46,7 +48,8 @@
 даёт ввести адрес с экрана телефона вручную.
 
 Удаляется установленная версия как обычно: «Параметры → Приложения». Настройки остаются в
-`%LOCALAPPDATA%\PhoneShare`.
+`%LOCALAPPDATA%\PhoneShare`. Переменная среды `PHONESHARE_HOME` переносит их, кэш WebView2, скриншоты и записи
+в другую папку, например `W:\PhoneShare\Data`.
 
 Нужен компонент Microsoft WebView2: в Windows 11 он уже есть. В Windows 10 PhoneShare покажет кнопку
 загрузки, если компонента нет.
@@ -78,7 +81,7 @@
 ## Сборка
 
 Нужны JDK 21 (`W:\jdk`), Android SDK в `.tools/android-sdk` (platform 36, build-tools 36.1.0),
-.NET SDK 8, WiX 5 (`dotnet tool install -g wix --version 5.0.2`), Node 24, ffmpeg (для тестов).
+.NET SDK 8, WiX 5 (`installer/build.ps1` сам ставит его в `.tools\wix`), Node 24, ffmpeg (для тестов).
 Версия всего проекта одна, в файле `VERSION`.
 
 ```bash

@@ -94,6 +94,8 @@ export class Cdp {
     this.id = 0;
     this.pending = new Map();
     this.errors = [];
+    // the app quitting or crashing closes the socket: fail what is waiting instead of hanging the test
+    ws.onclose = () => { for (const p of this.pending.values()) p.rej(new Error('CDP socket closed')); this.pending.clear(); };
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.id && this.pending.has(m.id)) {
@@ -112,6 +114,7 @@ export class Cdp {
 
   send(method, params = {}) {
     const id = ++this.id;
+    if (this.ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error('CDP socket closed'));
     this.ws.send(JSON.stringify({ id, method, params }));
     return new Promise((res, rej) => this.pending.set(id, { res, rej }));
   }
