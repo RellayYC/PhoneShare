@@ -12,12 +12,12 @@ import java.security.Signature;
 
 /**
  * Self-check for Updater against a local server (dev/update-android-test.mjs) holding latest.txt signed with the real key.
- * Args: base URL, expected APK code, expected APK sha256. Prints ANDROID UPDATER TESTS OK only after every assertion passes.
+ * Args: base URL, expected APK code, expected APK sha256, expected version. Prints ANDROID UPDATER TESTS OK only after every assertion passes.
  */
 public final class UpdaterTest {
     public static void main(String[] args) throws Exception {
         try {
-            run(args[0], Long.parseLong(args[1]), args[2]);
+            run(args[0], Long.parseLong(args[1]), args[2], args[3]);
             System.out.println("ANDROID UPDATER TESTS OK");
             System.exit(0);
         } catch (Throwable t) {
@@ -27,7 +27,7 @@ public final class UpdaterTest {
         }
     }
 
-    static void run(String base, long code, String sha) throws Exception {
+    static void run(String base, long code, String sha, String version) throws Exception {
         // P1363 -> DER against the JDK's own P1363 signer: random r and s hit the leading-zero and high-bit cases
         KeyPairGenerator g = KeyPairGenerator.getInstance("EC");
         g.initialize(256);
@@ -46,7 +46,7 @@ public final class UpdaterTest {
         }
 
         Updater.Release r = Updater.check(base + "/good", code - 1);
-        check(r != null && r.code == code && r.sha256.equals(sha) && r.apk.equals("PhoneShare.apk") && r.version.equals("1.0.0"),
+        check(r != null && r.code == code && r.sha256.equals(sha) && r.apk.equals("PhoneShare.apk") && r.version.equals(version),
                 "a signed newer release is offered: code, APK name, hash and version as published");
         check(Updater.check(base + "/good", code) == null, "the release this phone already runs is not offered");
         check(Updater.check(base + "/good", code + 1) == null, "an older release is not offered");

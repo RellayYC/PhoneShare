@@ -14,7 +14,7 @@ function check(ok, what) { if (!ok) fail(what); console.log('ok  ' + what); }
 const sha = (f) => createHash('sha256').update(readFileSync(f)).digest('hex');
 
 const ps1 = `$sh = New-Object -ComObject WScript.Shell
-$k = Get-ItemProperty 'HKCU:\Software\PhoneShare\Setup' -ErrorAction SilentlyContinue
+$k = Get-ItemProperty 'HKCU:\\Software\\PhoneShare\\Setup' -ErrorAction SilentlyContinue
 $out = @{ dir = "$($k.InstallDir)"; version = "$($k.Version)"; system = $env:SystemDrive; links = @() }
 foreach ($l in @((Join-Path ([Environment]::GetFolderPath('Programs')) 'PhoneShare.lnk'), (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'PhoneShare.lnk'))) {
   $out.links += @{ path = $l; exists = (Test-Path $l); target = $(if (Test-Path $l) { $sh.CreateShortcut($l).TargetPath } else { '' }) }

@@ -52,7 +52,7 @@ mkdirSync(out, { recursive: true });
 execFileSync(join(jdk, 'bin/javac'), ['-encoding', 'UTF-8', '-d', out,
   join(root, 'android/src/app/phoneshare/Updater.java'), join(root, 'dev/UpdaterTest.java')], { stdio: 'inherit' });
 const sha = createHash('sha256').update(readFileSync(apk)).digest('hex');
-const java = spawn(join(jdk, 'bin/java'), ['-Dstdout.encoding=UTF-8', '-cp', out, 'app.phoneshare.UpdaterTest', base, String(code), sha], { stdio: ['ignore', 'pipe', 'inherit'] });
+const java = spawn(join(jdk, 'bin/java'), ['-Dstdout.encoding=UTF-8', '-cp', out, 'app.phoneshare.UpdaterTest', base, String(code), sha, version], { stdio: ['ignore', 'pipe', 'inherit'] });
 let text = '';
 java.stdout.on('data', (d) => { text += d; process.stdout.write(d); });
 const exit = await new Promise((ok) => java.on('exit', ok));
