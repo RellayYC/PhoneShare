@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>PhoneShare</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body data-screen="loading">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v3.75h-3.75"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></symbol>
+    <symbol id="i-shot" viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.25L9.5 4.75h5L16.25 7h2.25A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.75" r="3.25"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.25"/><circle cx="12" cy="12" r="3.5" class="fill-on"/></symbol>
+    <symbol id="i-top" viewBox="0 0 24 24"><rect x="3.5" y="9" width="11" height="10.5" rx="1.5"/><rect x="9.5" y="4.5" width="11" height="10.5" rx="1.5" class="fill-on"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15"/></symbol>
+    <symbol id="i-unfull" viewBox="0 0 24 24"><path d="M9 4.5V9H4.5M19.5 9H15V4.5M15 19.5V15h4.5M4.5 15H9v4.5"/></symbol>
+  </defs>
+</svg>
+
+<main id="home" class="screen home" aria-labelledby="home-title">
+  <section id="update" class="update desktop-only" aria-live="polite" hidden>
+    <p id="update-text" class="update-text"></p>
+    <button id="update-go" class="primary" type="button">Обновить</button>
+  </section>
+  <section class="shelf-wrap">
+    <div class="shelf-head">
+      <h1 id="home-title">Телефоны</h1>
+      <button id="rescan" class="ghost" type="button"><svg class="icon"><use href="#i-refresh"/></svg><span>Искать снова</span></button>
+    </div>
+    <ul id="shelf" class="shelf" aria-label="Телефоны"></ul>
+    <p id="shelf-empty" class="shelf-empty">Ищу телефоны в этой сети…</p>
+  </section>
+
+  <div class="aside">
+    <details id="help" class="help">
+      <summary><svg class="icon chevron"><use href="#i-chevron"/></svg>Нет нужного телефона?</summary>
+      <ul class="checks">
+        <li>Открой PhoneShare на телефоне и нажми «Начать трансляцию»: на экране появится PIN.</li>
+        <li>Подключи телефон к той же сети, что и ПК. <span id="pc-net" class="pc-net"></span></li>
+        <li>Гостевая сеть и «изоляция клиентов» на роутере не пускают устройства друг к другу. Подключи оба к основной сети.</li>
+        <li>VPN на ПК или телефоне уводит трафик мимо домашней сети. Выключи его на время показа.</li>
+      </ul>
+      <form id="add-form" class="add" autocomplete="off">
+        <label for="add-host">Адрес с экрана телефона</label>
+        <div class="add-row">
+          <input id="add-host" placeholder="192.168.1.23:8080" inputmode="url" spellcheck="false" required>
+          <button class="secondary" type="submit">Подключить</button>
+        </div>
+        <p id="add-error" class="error" role="alert"></p>
+      </form>
+    </details>
+
+    <section id="miracast" class="miracast desktop-only" aria-labelledby="miracast-title">
+      <h2 id="miracast-title">Нет приложения на телефоне?</h2>
+      <p class="miracast-text">Телефоны с Miracast (Samsung, Xiaomi, Huawei и другие) покажут экран через приёмник Windows, без установки. Задержка выше, на Pixel не работает, ПК нужен Wi-Fi с Miracast.</p>
+      <button id="miracast-open" class="secondary" type="button">Открыть приёмник Miracast</button>
+      <ol id="miracast-steps" class="steps" aria-live="polite" hidden></ol>
+    </section>
+  </div>
+</main>
+
+<main id="pin" class="screen pin" aria-labelledby="pin-device">
+  <button id="pin-back" class="icon-btn pin-back" type="button" aria-label="К списку телефонов"><svg class="icon"><use href="#i-back"/></svg></button>
+  <div class="pin-layout">
+    <span id="pin-card" class="phone-body pin-card" aria-hidden="true"></span>
+    <form id="pin-form" class="pin-form" autocomplete="off">
+      <h1 id="pin-device">Телефон</h1>
+      <p class="pin-text">Введи PIN с экрана телефона</p>
+      <label class="pin-field">
+        <span class="sr">PIN-код, 6 цифр</span>
+        <input id="pin-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+        <span class="cells" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+      </label>
+      <p id="pin-error" class="error" role="alert"></p>
+      <label class="check"><input type="checkbox" id="pin-remember" checked><span>Запомнить PIN на этом устройстве</span></label>
+      <button id="pin-submit" class="primary wide" type="submit">Подключиться</button>
+    </form>
+  </div>
+</main>
+
+<main id="player" class="screen player" aria-label="Экран телефона">
+  <div id="stage" class="stage">
+    <canvas id="canvas" hidden></canvas>
+    <video id="video" muted playsinline hidden></video>
+  </div>
+  <div id="rec-bar" class="rec-bar" hidden></div>
+
+  <div class="hud hud-top">
+    <button id="player-back" class="icon-btn desktop-only" type="button" aria-label="К списку телефонов" title="К списку телефонов"><svg class="icon"><use href="#i-back"/></svg></button>
+    <p class="player-title"><span class="lamp" aria-hidden="true"></span><span id="player-name">Телефон</span></p>
+    <dl class="stats" aria-label="Качество связи">
+      <div><dt>задержка</dt><dd id="st-lat">—</dd></div>
+      <div><dt>кадры</dt><dd id="st-fps">—</dd></div>
+      <div><dt>поток</dt><dd id="st-rate">—</dd></div>
+    </dl>
+  </div>
+
+  <div class="hud hud-bottom">
+    <div class="seg" role="radiogroup" aria-label="Масштаб">
+      <button type="button" role="radio" data-fit="contain" aria-checked="true">Вписать</button>
+      <button type="button" role="radio" data-fit="cover" aria-checked="false">Заполнить</button>
+      <button type="button" role="radio" data-fit="fill" aria-checked="false">Растянуть</button>
+      <button type="button" role="radio" data-fit="native" aria-checked="false" title="Пиксель в пиксель">1:1</button>
+    </div>
+    <div class="tools">
+      <div class="volume">
+        <button id="mute" class="icon-btn" type="button" aria-label="Выключить звук" title="Звук (M)">
+          <svg class="icon swap on"><use href="#i-sound"/></svg><svg class="icon swap off"><use href="#i-muted"/></svg>
+        </button>
+        <input id="volume" type="range" min="0" max="100" value="80" aria-label="Громкость">
+      </div>
+      <button id="shot" class="icon-btn" type="button" aria-label="Сохранить скриншот" title="Скриншот (S)"><svg class="icon"><use href="#i-shot"/></svg></button>
+      <button id="rec" class="icon-btn rec-btn" type="button" aria-pressed="false" aria-label="Начать запись" title="Запись (R)" hidden><svg class="icon"><use href="#i-rec"/></svg><span id="rec-time" class="rec-time">0:00</span></button>
+      <button id="ontop" class="icon-btn desktop-only" type="button" aria-pressed="false" aria-label="Поверх всех окон" title="Поверх всех окон"><svg class="icon"><use href="#i-top"/></svg></button>
+      <button id="full" class="icon-btn" type="button" aria-label="Полный экран" title="Полный экран (F)">
+        <svg class="icon swap on"><use href="#i-full"/></svg><svg class="icon swap off"><use href="#i-unfull"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <button id="unmute" class="chip" type="button" hidden><svg class="icon"><use href="#i-sound"/></svg>Включить звук</button>
+
+  <div id="overlay" class="overlay" hidden>
+    <div class="overlay-box" role="alertdialog" aria-labelledby="overlay-title" aria-describedby="overlay-text">
+      <p id="overlay-title" class="overlay-title"></p>
+      <p id="overlay-text" class="overlay-text"></p>
+      <div class="overlay-actions">
+        <button id="overlay-primary" class="primary" type="button"></button>
+        <button id="overlay-secondary" class="secondary" type="button"></button>
+      </div>
+    </div>
+  </div>
+
+  <p id="toast" class="toast" role="status" aria-live="polite"></p>
+</main>
+</body>
+</html>

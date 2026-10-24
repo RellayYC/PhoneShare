@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-user MSI: %LOCALAPPDATA%\Programs\PhoneShare, Start-menu and desktop shortcuts, no admin rights and no dialogs.
+     The updater (desktop/Updater.cs) runs it with /passive; a double-click installs and starts PhoneShare. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package Name="PhoneShare" Manufacturer="PhoneShare" Version="$(Version)" UpgradeCode="8E8B0BFD-51F1-442A-AECF-3043F0C6D9F9"
+             Scope="perUser" Language="1049" Codepage="1251" Compressed="yes">
+        <MajorUpgrade DowngradeErrorMessage="Уже установлена более новая версия PhoneShare. Сначала удали её." />
+        <MediaTemplate EmbedCab="yes" />
+
+        <Icon Id="app.ico" SourceFile="..\desktop\app.ico" />
+        <Property Id="ARPPRODUCTICON" Value="app.ico" />
+        <Property Id="ARPNOMODIFY" Value="1" />
+        <Property Id="ARPNOREPAIR" Value="1" />
+        <Property Id="ARPURLINFOABOUT" Value="https://github.com/RellayYC/PhoneShare" />
+
+        <StandardDirectory Id="LocalAppDataFolder">
+            <Directory Id="ProgramsDir" Name="Programs">
+                <Directory Id="INSTALLFOLDER" Name="PhoneShare" />
+            </Directory>
+        </StandardDirectory>
+        <StandardDirectory Id="ProgramMenuFolder" />
+        <StandardDirectory Id="DesktopFolder" />
+
+        <Feature Id="Main">
+            <!-- per-user components keep their key path in HKCU; the updater reads InstallDir to know an installed copy -->
+            <Component Id="App" Directory="INSTALLFOLDER" Guid="2CEC6BD6-D391-4DFC-8266-B31B5C6DA470">
+                <File Id="PhoneShareExe" Source="$(Exe)" Name="PhoneShare.exe" KeyPath="no" />
+                <RegistryValue Root="HKCU" Key="Software\PhoneShare\Setup" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+                <RegistryValue Root="HKCU" Key="Software\PhoneShare\Setup" Name="Version" Type="string" Value="$(Version)" />
+                <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+                <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+                <RemoveRegistryKey Root="HKCU" Key="Software\PhoneShare\Setup" Action="removeOnUninstall" />
+            </Component>
+            <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
+                <Shortcut Id="StartMenu" Name="PhoneShare" Target="[INSTALLFOLDER]PhoneShare.exe" WorkingDirectory="INSTALLFOLDER"
+                          Icon="app.ico" Description="Экран и звук телефона на ПК" />
+                <RegistryValue Root="HKCU" Key="Software\PhoneShare\Setup" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+            </Component>
+            <Component Id="DesktopShortcut" Directory="DesktopFolder">
+                <Shortcut Id="Desktop" Name="PhoneShare" Target="[INSTALLFOLDER]PhoneShare.exe" WorkingDirectory="INSTALLFOLDER"
+                          Icon="app.ico" Description="Экран и звук телефона на ПК" />
+                <RegistryValue Root="HKCU" Key="Software\PhoneShare\Setup" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+            </Component>
+        </Feature>
+
+        <!-- a double-click (full UI level) ends with PhoneShare open; the updater's /passive run starts it itself -->
+        <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]PhoneShare.exe&quot;"
+                      Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
+        <InstallExecuteSequence>
+            <Custom Action="LaunchApp" After="InstallFinalize" Condition="UILevel = 5 AND NOT REMOVE" />
+        </InstallExecuteSequence>
+    </Package>
+</Wix>

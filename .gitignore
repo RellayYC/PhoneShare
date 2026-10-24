@@ -1,0 +1,23 @@
+# tools, builds and local notes stay on this PC
+.claude/
+.specify/
+.unlazy/
+.unlazy-hook-state.json
+.tools/
+dist/
+replica/
+specs/
+PLAN.md
+GATES.md
+android/build/
+desktop/bin/
+desktop/obj/
+dev/.out/
+
+# keys live in W:\Keys, never here
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.snk

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhoneShare</string>
+    <string name="status_off">Трансляция выключена</string>
+    <string name="status_off_text">Нажми кнопку, и Android спросит разрешение на запись экрана.</string>
+    <string name="status_on">Идёт трансляция</string>
+    <string name="start">Начать трансляцию</string>
+    <string name="stop">Остановить</string>
+    <string name="how_label">Как смотреть на ПК</string>
+    <string name="how_hint">Открой этот адрес в браузере на ПК или запусти PhoneShare для Windows: телефон появится в списке сам. ПК и телефон должны быть в одной сети Wi-Fi.</string>
+    <string name="copy">Копировать адрес</string>
+    <string name="copied">Адрес скопирован</string>
+    <string name="no_network">Нет сети. Подключись к Wi-Fi или включи точку доступа.</string>
+    <string name="pin_label">PIN для подключения</string>
+    <string name="new_pin">Новый PIN</string>
+    <string name="pin_hint">Новый PIN не отключит тех, кто уже смотрит, но войти со старым больше не получится.</string>
+    <string name="quality_label">Качество</string>
+    <string name="q_low">Экономно: до 1280 px, 30 кадров/с</string>
+    <string name="q_mid">Баланс: до 1920 px, 60 кадров/с</string>
+    <string name="q_high">Максимум: до 2560 px, 60 кадров/с</string>
+    <string name="quality_hint">Если сеть не справляется, качество снизится само и вернётся, когда она разгрузится.</string>
+    <string name="quality_restart">Новое качество включится при следующем запуске трансляции.</string>
+    <string name="audio">Передавать звук</string>
+    <string name="audio_hint">Звук продолжает играть и на телефоне. Звонки и приложения, запретившие запись, Android не передаёт.</string>
+    <string name="audio_denied">Нет разрешения на запись звука, поэтому идёт только картинка. Его можно выдать в настройках приложения.</string>
+    <string name="viewers_label">Сейчас смотрят</string>
+    <string name="viewers_none">Пока никто не смотрит.</string>
+    <string name="projection_denied">Без разрешения на запись экрана трансляция не начнётся.</string>
+    <string name="channel">Трансляция</string>
+    <string name="notif_title">Идёт трансляция</string>
+    <string name="error_start">Не удалось начать трансляцию: %1$s</string>
+    <string name="update">Обновить</string>
+    <string name="update_retry">Повторить</string>
+    <string name="update_available">Доступна версия %1$s.</string>
+    <string name="update_progress">Скачиваю версию %1$s: %2$d %%</string>
+    <string name="update_installing">Устанавливаю версию %1$s…</string>
+    <string name="update_failed">Обновление не установилось: %1$s</string>
+    <string name="update_allow">Разреши PhoneShare устанавливать приложения, вернись и нажми «Обновить» ещё раз.</string>
+</resources>

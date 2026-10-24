@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="paper">#1E2430</color>
+    <color name="surface">#272E3C</color>
+    <color name="ink">#E6E9EF</color>
+    <color name="ink2">#A0A9BA</color>
+    <color name="line">#394254</color>
+    <color name="danger">#FF7A70</color>
+    <color name="online">#6FD39A</color>
+</resources>
