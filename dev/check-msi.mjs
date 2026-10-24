@@ -1,6 +1,6 @@
 // G15: builds the exe and the MSI, then reads the MSI's own tables (WindowsInstaller COM) and unpacks it (wix msi decompile):
-// per-user, the VERSION version, %LOCALAPPDATA%\Programs\PhoneShare, Start-menu and desktop shortcuts, and the exe inside
-// byte for byte the built one.
+// per-user, the VERSION version, %LOCALAPPDATA%\Programs\PhoneShare, Start-menu and desktop shortcuts, and inside it
+// the exe byte for byte the built one plus LICENSE.txt.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -77,9 +77,12 @@ const tmp = mkdtempSync(join(root, 'dev', '.out', 'msi-'));
 try {
   const d = spawnSync(join(root, '.tools', 'wix', 'wix.exe'), ['msi', 'decompile', msi, '-x', tmp, '-o', join(tmp, 'out.wxs')], { encoding: 'utf8' });
   check(d.status === 0, 'wix msi decompile unpacks it, exit ' + d.status);
-  const files = readdirSync(join(tmp, 'File'));
-  check(files.length === 1 && files[0] === 'PhoneShareExe', 'the MSI holds one file, PhoneShareExe: ' + files.join(', '));
-  check(/<File Id="PhoneShareExe"[^>]*Name="PhoneShare\.exe"/.test(readFileSync(join(tmp, 'out.wxs'), 'utf8')), 'installed as PhoneShare.exe');
-  check(sha(join(tmp, 'File', files[0])) === sha(exe), 'and it is byte for byte dist/PhoneShare.exe');
+  const files = readdirSync(join(tmp, 'File')).sort();
+  check(files.join() === 'LicenseTxt,PhoneShareExe', 'the MSI holds two files, the exe and the license: ' + files.join(', '));
+  const wxs = readFileSync(join(tmp, 'out.wxs'), 'utf8');
+  check(/<File Id="PhoneShareExe"[^>]*Name="PhoneShare\.exe"/.test(wxs) && /<File Id="LicenseTxt"[^>]*Name="LICENSE\.txt"/.test(wxs),
+    'installed as PhoneShare.exe and LICENSE.txt');
+  check(sha(join(tmp, 'File', 'PhoneShareExe')) === sha(exe), 'the exe is byte for byte dist/PhoneShare.exe');
+  check(sha(join(tmp, 'File', 'LicenseTxt')) === sha(join(root, 'LICENSE')), 'the license is byte for byte LICENSE');
 } finally { rmSync(tmp, { recursive: true, force: true }); }
 console.log('MSI OK');

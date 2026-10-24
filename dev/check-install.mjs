@@ -30,6 +30,7 @@ const built = join(root, 'dist', 'PhoneShare.exe');
 check(info.dir && info.version === version, `the MSI has PhoneShare ${info.version} registered in ${info.dir} (VERSION ${version})`);
 check(!info.dir.toUpperCase().startsWith(info.system.toUpperCase()), 'not on the system drive ' + info.system);
 check(existsSync(installed) && existsSync(built) && sha(installed) === sha(built), 'installed exe is byte for byte dist/PhoneShare.exe');
+check(existsSync(join(info.dir, 'LICENSE.txt')), 'LICENSE.txt sits beside it');
 for (const l of info.links) {
   check(l.exists && l.target.toLowerCase() === installed.toLowerCase(), `shortcut ${l.path} opens the installed exe`);
 }

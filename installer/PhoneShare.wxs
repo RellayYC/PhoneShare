@@ -38,6 +38,10 @@
                 <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
                 <RemoveRegistryKey Root="HKCU" Key="Software\PhoneShare\Setup" Action="removeOnUninstall" />
             </Component>
+            <Component Id="License" Directory="INSTALLFOLDER" Guid="4A001389-C32D-490F-A24D-5C41C8074CF0">
+                <File Id="LicenseTxt" Source="..\LICENSE" Name="LICENSE.txt" KeyPath="no" />
+                <RegistryValue Root="HKCU" Key="Software\PhoneShare\Setup" Name="License" Type="integer" Value="1" KeyPath="yes" />
+            </Component>
             <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
                 <Shortcut Id="StartMenu" Name="PhoneShare" Target="[INSTALLFOLDER]PhoneShare.exe" WorkingDirectory="INSTALLFOLDER"
                           Icon="app.ico" Description="Экран и звук телефона на ПК" />
