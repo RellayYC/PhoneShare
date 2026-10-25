@@ -596,12 +596,70 @@ let player = null;
 function onFrameShown(w, h) {
   stats.frames++;
   framesThisSec++;
-  if (stats.state === 'live') $('player').classList.add('live');
   if (w && h && (w !== stats.width || h !== stats.height)) {
     stats.width = w;
     stats.height = h;
     applyNative();
   }
+  if (stats.state === 'live' && !$('player').classList.contains('live')) {   // the first picture of this connection
+    $('player').classList.add('live');
+    reveal();
+  }
+}
+
+/** The picture inside a W x H box as object-fit lays it out for the chosen scale: its offset and size. */
+function fitBox(W, H) {
+  let w = W;
+  let h = H;
+  const fit = $('player').dataset.fit;
+  if (stats.width && stats.height && (fit === 'contain' || fit === 'cover')) {   // proportions kept, centred
+    const k = (fit === 'contain' ? Math.min : Math.max)(W / stats.width, H / stats.height);
+    w = stats.width * k;
+    h = stats.height * k;
+  }
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+
+const picture = () => (canWebCodecs ? $('canvas') : $('video'));
+stats.reveals = 0;
+
+/** The picture comes on like a screen: an amber line runs across its middle, the picture opens out of it, a glow fades. */
+function reveal() {
+  stats.reveals++;
+  const pic = picture();
+  const W = pic.clientWidth;
+  const H = pic.clientHeight;
+  if (!W || !H || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const b = fitBox(W, H);
+  const l = Math.max(0, b.x);   // only the part in view: «Заполнить» crops the rest
+  const t = Math.max(0, b.y);
+  const r = Math.max(0, W - b.x - b.w);
+  const bt = Math.max(0, H - b.y - b.h);
+  const mid = (t + H - bt) / 2;
+  const half = (W - l - r) / 2;
+  const ease = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const boot = el('span', 'boot');
+  Object.assign(boot.style, { left: `${pic.offsetLeft + l}px`, top: `${pic.offsetTop + t}px`, width: `${W - l - r}px`, height: `${H - t - bt}px` });
+  const glow = el('span', 'boot-glow');
+  const line = el('span', 'boot-line');
+  boot.append(glow, line);
+  $('stage').append(boot);
+  // one timeline for the line and the picture: across in the first 30 %, then open; each step eases on its own
+  const hot = 'brightness(2.2) saturate(0.3)';
+  pic.animate([
+    { clipPath: `inset(${mid - 1}px ${r + half}px ${H - mid - 1}px ${l + half}px)`, filter: hot, easing: ease },
+    { clipPath: `inset(${mid - 1}px ${r}px ${H - mid - 1}px ${l}px)`, filter: hot, offset: 0.3, easing: ease },
+    { clipPath: `inset(${t}px ${r}px ${bt}px ${l}px)`, filter: 'brightness(1) saturate(1)' },
+  ], 720);
+  Promise.allSettled([
+    line.animate([
+      { scale: '0 1', opacity: 1, easing: ease },
+      { scale: '1 1', opacity: 1, offset: 0.3 },
+      { scale: '1 1', opacity: 1, offset: 0.4, easing: 'ease-out' },
+      { scale: '1 1', opacity: 0 },
+    ], 720).finished,
+    glow.animate([{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: 900, delay: 300, easing: 'ease-out' }).finished,
+  ]).then(() => boot.remove());
 }
 
 function noteLatency(ms) {
@@ -1110,24 +1168,13 @@ function reserveHud() {
 window.addEventListener('resize', reserveHud);
 new ResizeObserver(reserveHud).observe(document.querySelector('.hud-bottom'));
 
-const picture = () => (canWebCodecs ? $('canvas') : $('video'));
-
 /** Where a point of the window falls on the phone's screen, as fractions of it; null on the bars around the picture. */
 function phonePoint(e, clamp) {
   const r = picture().getBoundingClientRect();
-  const w = stats.width;
-  const h = stats.height;
-  if (!w || !h || !r.width || !r.height) return null;
-  let cw = r.width;
-  let ch = r.height;
-  const fit = $('player').dataset.fit;
-  if (fit === 'contain' || fit === 'cover') {   // object-fit keeps the proportions and centres the picture
-    const k = (fit === 'contain' ? Math.min : Math.max)(r.width / w, r.height / h);
-    cw = w * k;
-    ch = h * k;
-  }
-  const x = (e.clientX - r.left - (r.width - cw) / 2) / cw;
-  const y = (e.clientY - r.top - (r.height - ch) / 2) / ch;
+  if (!stats.width || !stats.height || !r.width || !r.height) return null;
+  const b = fitBox(r.width, r.height);
+  const x = (e.clientX - r.left - b.x) / b.w;
+  const y = (e.clientY - r.top - b.y) / b.h;
   if (clamp) return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))];
   return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? [x, y] : null;
 }

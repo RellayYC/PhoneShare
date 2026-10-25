@@ -67,6 +67,7 @@ async function runMse() {
   const f0 = await ps(a, 'frames');
   await a.waitFor(`__ps.frames > ${f0 + 30}`, 10000, 'frames after rotation');
   check(true, `rotation ${w0}x${h0} -> ${h0}x${w0} keeps playing`);
+  check(await ps(a, 'reveals') === 1, 'the picture came on once: a rotation does not replay it');
 
   // Headless Chrome stops painting video in background tabs, so each viewer is checked in front;
   // both stay connected and keep receiving the stream the whole time.
@@ -87,6 +88,7 @@ async function runMse() {
   const fr = await ps(a, 'frames');
   await a.waitFor(`__ps.state === 'live' && __ps.frames > ${fr + 30} && __ps.reconnects >= 1`, 25000, 'auto reconnect');
   check(true, 'viewer reconnects by itself after the phone restarts');
+  check(await ps(a, 'reveals') === 2, 'after the reconnect the picture comes on again');
   check((await ps(a, 'errors')).length === 0, 'no player errors: ' + JSON.stringify(await ps(a, 'errors')));
   console.log('E2E MSE OK');
 }
@@ -100,6 +102,10 @@ async function runWebCodecs() {
   await typePin(a, PIN);
   await waitLive(a, 30, 'WebCodecs frames');
   check(true, 'WebCodecs decodes video (30+ frames drawn)');
+  check(await ps(a, 'reveals') === 1, 'the first picture comes on with the screen-on animation');
+  await a.waitFor(`!document.querySelector('.boot') && document.getElementById('canvas').getAnimations().length === 0
+    && getComputedStyle(document.getElementById('canvas')).clipPath === 'none'`, 3000, 'animation over');
+  check(true, 'the animation leaves nothing behind: no line, no glow, the picture unclipped');
   check(await ps(a, 'width') === 720 && await ps(a, 'height') === 1280, 'canvas has the phone resolution 720x1280');
   await a.waitFor(`__ps.audioChunks > 25 && __ps.audioState === 'running'`, 10000, 'audio');
   check(true, 'audio plays');
@@ -415,6 +421,7 @@ async function runUi() {
   // Browser on a phone-sized screen, 375x812
   const m = await openPage(9333, `http://${lanIp()}:${fake.port}/`, { width: 375, height: 812 });
   cleanups.push(() => m.close());
+  await m.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await m.waitFor(`window.__ps && __ps.screen === 'pin'`, 10000, 'mobile PIN');
   await m.waitFor(`document.querySelector('#pin-card .phone-letter') && document.querySelector('#pin-card .phone-letter').textContent === 'F'`, 5000, 'PIN card letter from the real name');
   check(true, 'PIN card takes the letter of the phone name from /info');
@@ -424,6 +431,8 @@ async function runUi() {
   check(await m.eval(`getComputedStyle(document.getElementById('pin-back')).display === 'none'`), 'no back button in plain browser');
   await typePin(m, PIN);
   await waitLive(m, 30, 'mobile player');
+  check(await m.eval(`__ps.reveals === 1 && !document.querySelector('.boot') && document.getElementById('video').getAnimations().length === 0`),
+    'reduced motion: the picture just appears, no screen-on animation');
   await hover(m);
   await sleep(1200);
   await snap(m, 'mobile-player');

@@ -340,6 +340,16 @@ body.checking #update-check .icon { animation: spin 900ms linear infinite; }
 }
 /* control: the picture steps out from under the controls (JS measures them), so all of the phone's screen is reachable */
 .player.controlling .stage { top: var(--reserve-top, 72px); bottom: var(--reserve-bottom, 76px); touch-action: none; user-select: none; -webkit-user-select: none; }
+/* the picture coming on (reveal in app.js): a hot line across its middle, then an amber glow round its edge */
+.boot { position: absolute; pointer-events: none; }
+.boot-glow {
+  position: absolute; inset: 0; opacity: 0;
+  box-shadow: 0 0 0 1px rgb(255 182 26 / 0.55), 0 0 48px rgb(255 182 26 / 0.3);
+}
+.boot-line {
+  position: absolute; left: 0; right: 0; top: calc(50% - 1px); height: 2px; border-radius: 1px; background: #FFE7B0; opacity: 0;
+  box-shadow: 0 0 6px 1px rgb(255 182 26 / 0.9), 0 0 28px 6px rgb(255 182 26 / 0.45);
+}
 .touch {   /* where a click reached the phone */
   position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%;
   box-shadow: 0 0 0 2px #FFB61A, inset 0 0 0 1px rgb(0 0 0 / 0.3); pointer-events: none;
