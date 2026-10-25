@@ -561,6 +561,7 @@ public final class StreamServer {
             try {
                 while (!closed) {
                     Out o = queue.pollFirst(10, TimeUnit.SECONDS);
+                    if (closed) break;   // close() wakes the writer with an empty item: nothing may go out after it
                     if (o == null) sendFrame(0x9, new byte[0]);   // keepalive ping; a dead peer fails the write or the read timeout
                     else sendFrame(o.text ? 0x1 : 0x2, o.data);
                 }
