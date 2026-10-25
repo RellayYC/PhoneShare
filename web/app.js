@@ -1194,13 +1194,18 @@ function reserveHud() {
   const bottom = side ? 0 : H - dock.offsetTop + 8;
   const bar = top.offsetTop + top.offsetHeight + 8;
   const b = fitBox(W - right, H - bottom);   // the picture with the whole height
-  const under = b.y < bar && [...top.children].some((e) => e.offsetWidth && e.offsetLeft < b.x + b.w && e.offsetLeft + e.offsetWidth > b.x);
+  const under = b.y < bar && [...top.children].some((e) => {
+    const x = top.offsetLeft + e.offsetLeft;   // a plate's place in the player, not in its bar
+    return e.offsetWidth && x < b.x + b.w && x + e.offsetWidth > b.x;
+  });
   p.style.setProperty('--reserve-top', `${under ? bar : 0}px`);
   p.style.setProperty('--reserve-right', `${right}px`);
   p.style.setProperty('--reserve-bottom', `${bottom}px`);
 }
 window.addEventListener('resize', reserveHud);
-new ResizeObserver(reserveHud).observe(document.querySelector('.hud-dock'));
+const hudSize = new ResizeObserver(reserveHud);   // the dock wraps, the statistics grow wider: what the picture reaches changes
+hudSize.observe(document.querySelector('.hud-dock'));
+hudSize.observe(document.querySelector('.stats'));
 
 /** Where a point of the window falls on the phone's screen, as fractions of it; null on the bars around the picture. */
 function phonePoint(e, clamp) {

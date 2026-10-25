@@ -231,17 +231,21 @@ async function checkControl(a) {
   await mouse('mouseReleased', cx, cy);
   await a.eval(`document.getElementById('control').click(); true`);
   await a.waitFor(`__ps.controlling`, 2000, 'control mode again');
+  await sleep(400);   // the picture settles where the controls leave it room
+  r = await rect();
+  const mx = r.x + r.w / 2;
+  const my = r.y + r.h / 2;
 
   // the right button is «Назад», the middle one «Домой»
   n = sent().length;
-  await click(cx, cy, 'right');
-  await click(cx, cy, 'middle');
+  await click(mx, my, 'right');
+  await click(mx, my, 'middle');
   got = await waitSent(n, 2, 'right and middle buttons');
   check(got[0].t === 'nav' && got[0].a === 'back' && got[1].t === 'nav' && got[1].a === 'home', 'the right mouse button is «Назад», the middle one «Домой»');
 
   // the wheel: a short swipe through the cursor, against the turn
   n = sent().length;
-  await a.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: cx, y: cy, deltaX: 0, deltaY: 120 });
+  await a.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: mx, y: my, deltaX: 0, deltaY: 120 });
   got = await waitSent(n, 1, 'wheel');
   p = pts(got[0]);
   check(got[0].t === 'gesture' && p.length === 2 && p[0][1] > p[1][1] && near(p[0][0], 0.5) && near((p[0][1] + p[1][1]) / 2, 0.5),
