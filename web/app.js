@@ -437,7 +437,7 @@ class Session {
       case 'hello':
         this.dev.name = m.name;
         this.audio = m.audio;
-        audio.setPhone(m.vol == null ? 1 : m.vol);   // phones before 1.2 send no volume: full
+        audio.setPhone(m.vol == null ? 1 : m.vol, m.step, m.steps);   // phones before 1.2 send no volume: full
         if (DESKTOP) saveDevice(this.dev);
         $('player-name').textContent = m.name;
         document.title = `${m.name} — PhoneShare`;
@@ -461,8 +461,8 @@ class Session {
       case 'time':
         clock.sample(m);
         break;
-      case 'volume':   // the phone's volume keys: the PC follows
-        audio.setPhone(m.v);
+      case 'volume':   // the phone's volume changed (its keys, or a PC's slider): every PC follows
+        audio.setPhone(m.v, m.step, m.steps);
         break;
       case 'audio':   // the phone switched its sound on or off mid-stream
         if (!!m.audio === !!this.audio) break;
@@ -490,9 +490,13 @@ class Session {
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ t: 'ping', c: performance.now() }));
   }
 
+  send(m) {
+    if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m));
+  }
+
   /** A touch, a system button or typing for the phone; it performs them only while its owner allows control. */
   command(m) {
-    if (this.control && this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m));
+    if (this.control) this.send(m);
   }
 
   requestKey() {
@@ -860,10 +864,14 @@ class MsePlayer {
 
 /** The volume slider is even to the ear: its travel is 48 dB, not raw gain (half way was nearly as loud as the top). */
 const loudness = (v) => (v > 0 ? 10 ** (-48 * (1 - Math.min(1, v)) / 20) : 0);
+/** The phone's own curve (StreamServer.stepGain): each step of its media volume the same share of 40 dB. */
+const stepGain = (s, n) => (s > 0 && n > 0 ? 10 ** (-40 * (1 - Math.min(1, s / n)) / 20) : 0);
 
 const audio = {
   ctx: null, bus: null, gain: null, next: 0, target: 0.06, lastAdjust: 0, rate: 48000, ch: 2,
   volume: store.get('volume', 0.8), muted: store.get('muted', false), phone: 1,
+  // phones from 1.5 on: one volume, the phone's step of steps, the same on the phone and every PC
+  step: 0, steps: null, remote: 0, holdUntil: 0, holdTimer: 0,
 
   /** Call from a click when possible: browsers only start sound after a user gesture. */
   ensure() {
@@ -886,17 +894,25 @@ const audio = {
 
   format(rate, ch) { this.rate = rate; this.ch = ch; this.next = 0; },
 
-  /** What you hear: this PC's volume times the phone's own (its volume keys), or nothing when muted here. */
+  /** What you hear: the shared volume (older phones: this PC's slider times the phone's), or nothing when muted here. */
   apply() {
-    const g = this.muted ? 0 : loudness(this.volume) * this.phone;
+    const level = this.steps ? stepGain(this.step, this.steps) : loudness(this.volume) * this.phone;
+    const g = this.muted ? 0 : level;
     stats.gain = g;
     if (this.gain) this.gain.gain.setTargetAtTime(g, this.ctx.currentTime, 0.04);   // glide: no click on a jump
   },
 
-  setPhone(v) {
+  /** The phone's volume: as gain from any phone, and as its step of steps from 1.5 on, which this PC's slider then shows. */
+  setPhone(v, step, steps) {
     this.phone = Math.max(0, Math.min(1, Number(v) || 0));
     stats.phoneVolume = this.phone;
+    this.steps = steps > 0 ? steps : null;
+    if (this.steps) {
+      this.remote = Math.max(0, Math.min(this.steps, step | 0));
+      if (performance.now() >= this.holdUntil) this.step = this.remote;   // not while the slider is in a hand here
+    }
     this.apply();
+    renderVolume();
   },
 
   push(buf) {
@@ -989,14 +1005,22 @@ $('scale').addEventListener('click', () => openScale($('scale').getAttribute('ar
 document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.scale')) openScale(false); });
 
 function renderVolume() {
-  $('volume').value = Math.round(audio.volume * 100);
-  $('mute').classList.toggle('is-off', audio.muted || audio.volume === 0);
+  const synced = !!audio.steps;
+  const v = $('volume');
+  v.max = synced ? audio.steps : 100;   // the phone's own steps: one notch here is one press of its keys
+  v.value = synced ? audio.step : Math.round(audio.volume * 100);
+  const pct = synced ? Math.round(audio.step / audio.steps * 100) : Math.round(audio.volume * 100);
+  $('vol-value').textContent = `${pct} %`;
+  v.setAttribute('aria-valuetext', `${pct} %`);
+  stats.volumeStep = synced ? audio.step : null;
+  $('mute').classList.toggle('is-off', audio.muted || pct === 0);
   $('mute').setAttribute('aria-label', audio.muted ? 'Включить звук' : 'Выключить звук');
 }
 
+/** Mute is this PC's alone: the phone and the other viewers keep their sound, and the shared volume stays. */
 function toggleMute() {
   audio.muted = !audio.muted;
-  if (!audio.muted && audio.volume === 0) audio.volume = 0.5;
+  if (!audio.muted && !audio.steps && audio.volume === 0) audio.volume = 0.5;
   audio.ensure();
   audio.apply();
   store.set('muted', audio.muted);
@@ -1004,16 +1028,61 @@ function toggleMute() {
   renderVolume();
 }
 
-$('mute').addEventListener('click', toggleMute);
-$('volume').addEventListener('input', () => {
-  audio.volume = $('volume').value / 100;
+/** The slider or the wheel. A phone from 1.5 on takes the step itself (and tells every PC); older ones scale this PC only. */
+function setLevel(value) {
   audio.muted = false;
+  if (audio.steps) {
+    audio.step = Math.max(0, Math.min(audio.steps, Math.round(value)));
+    audio.holdUntil = performance.now() + 600;   // the phone's answers to the steps on the way do not pull the slider back
+    clearTimeout(audio.holdTimer);
+    audio.holdTimer = setTimeout(() => {   // then the phone has the last word (it may refuse a step)
+      if (audio.remote === audio.step) return;
+      audio.step = audio.remote;
+      audio.apply();
+      renderVolume();
+    }, 650);
+    sendStep();
+  } else {
+    audio.volume = Math.max(0, Math.min(100, value)) / 100;
+    store.set('volume', audio.volume);
+  }
+  store.set('muted', false);
   audio.ensure();
   audio.apply();
-  store.set('volume', audio.volume);
-  store.set('muted', false);
   renderVolume();
-});
+}
+
+// a drag sends a step at most every 60 ms, and always the one it stops on
+const stepOut = { timer: 0, at: 0 };
+function sendStep() {
+  if (stepOut.timer) return;
+  const go = () => {
+    stepOut.timer = 0;
+    stepOut.at = performance.now();
+    if (session) session.send({ t: 'volume', step: audio.step });
+  };
+  const wait = 60 - (performance.now() - stepOut.at);
+  if (wait <= 0) go();
+  else stepOut.timer = setTimeout(go, wait);
+}
+
+$('mute').addEventListener('click', toggleMute);
+$('volume').addEventListener('input', () => setLevel(Number($('volume').value)));
+
+// the wheel over the speaker or its slider: a step per notch (5 % for older phones); a touchpad adds up to a notch
+let volumeWheel = 0;
+document.querySelector('.volume').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const d = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+  if (Math.abs(d) < 50) {
+    volumeWheel += d;
+    if (Math.abs(volumeWheel) < 50) return;
+  }
+  const up = (Math.abs(d) >= 50 ? d : volumeWheel) < 0;
+  volumeWheel = 0;
+  if (audio.steps) setLevel(audio.step + (up ? 1 : -1));
+  else setLevel(Math.round(audio.volume * 100) + (up ? 5 : -5));
+}, { passive: false });
 
 function toggleFull() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});

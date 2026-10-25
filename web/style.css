@@ -474,6 +474,7 @@ body.idle .player { cursor: none; }
 .player.silent .volume > .icon-btn { opacity: 0.4; }   /* the phone's sound is off: still usable, visibly idle */
 .vol-pop { display: flex; align-items: center; height: 48px; padding: 0 14px; }
 .vol-pop input { width: 128px; margin: 0; accent-color: #EDEFF3; }
+.vol-value { min-width: 3.4em; margin-left: 10px; text-align: right; font: 600 14px/1 var(--font-din); font-variant-numeric: tabular-nums; color: #EDEFF3; }
 
 .swap { position: absolute; transition-property: opacity, scale, filter; transition-duration: 200ms; transition-timing-function: var(--ease); }
 .swap.off { opacity: 0; scale: 0.25; filter: blur(4px); }

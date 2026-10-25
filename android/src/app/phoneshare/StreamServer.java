@@ -60,7 +60,8 @@ public final class StreamServer {
     private final Function<String, byte[]> assets;
     private volatile String pin;
     private volatile String audioJson = "null";
-    private volatile float volume = 1;   // the phone's media volume as linear gain; viewers multiply their own by it
+    private volatile float volume = 1;   // the phone's media volume as linear gain (what viewers before 1.5 multiply by)
+    private volatile int[] volumeStep;   // the same as {step, steps} of the phone's media volume; null: not known
     private volatile boolean control;    // the phone takes taps, keys and buttons from viewers
     private volatile String videoInfo;      // {"t":"video",...} for the current encoder
     private volatile byte[] configPacket;   // SPS+PPS packet for the current encoder
@@ -71,6 +72,8 @@ public final class StreamServer {
     public volatile Runnable onViewersChanged;
     /** Gets "touch", "gesture", "text" and "nav" messages from viewers that entered the PIN; the phone performs them. */
     public volatile java.util.function.Consumer<String> onControl;
+    /** A viewer moved its volume slider: the phone's media volume step it asks for (0..steps). Any PIN holder may. */
+    public volatile java.util.function.IntConsumer onVolume;
 
     private final CopyOnWriteArrayList<Client> clients = new CopyOnWriteArrayList<>();
     private final Map<String, long[]> failures = new HashMap<>();   // ip -> {count, lockedUntilMs}
@@ -145,11 +148,25 @@ public final class StreamServer {
 
     /** The phone's media volume as linear gain 0..1, sent to every viewer when it changes. */
     public void setVolume(float gain) {
+        setVolume(gain, -1, -1);
+    }
+
+    /**
+     * The same with the phone's step of steps: one volume on the phone and every PC. Viewers show the step on their
+     * slider, and a viewer that moves its slider asks for a step back (onVolume); steps <= 0: not known.
+     */
+    public synchronized void setVolume(float gain, int step, int steps) {
         float v = Math.max(0, Math.min(1, gain));
-        if (v == volume) return;
+        int[] st = steps > 0 ? new int[] {Math.max(0, Math.min(steps, step)), steps} : null;
+        if (v == volume && java.util.Arrays.equals(st, volumeStep)) return;
         volume = v;
-        Out o = text("{\"t\":\"volume\",\"v\":" + volumeText(v) + "}");
+        volumeStep = st;
+        Out o = text("{\"t\":\"volume\",\"v\":" + volumeText(v) + stepJson(st) + "}");
         for (Client c : authed()) c.send(o);
+    }
+
+    private static String stepJson(int[] st) {
+        return st == null ? "" : ",\"step\":" + st[0] + ",\"steps\":" + st[1];
     }
 
     /** Whether viewers may control the phone; they hear about a change at once. */
@@ -420,6 +437,11 @@ public final class StreamServer {
                 if ("touch".equals(t)) c.pressing = !"up".equals(field(msg, "a"));
                 k.accept(msg);
             }
+        } else if ("volume".equals(t)) {   // a viewer's volume slider: the phone's own volume follows, like a remote's buttons
+            java.util.function.IntConsumer k = onVolume;
+            int[] st = volumeStep;
+            String n = field(msg, "step");
+            if (k != null && st != null && n != null && n.matches("[0-9]{1,4}") && Integer.parseInt(n) <= st[1]) k.accept(Integer.parseInt(n));
         } else if ("ping".equals(t)) {
             String cl = field(msg, "c");
             c.send(text("{\"t\":\"time\",\"c\":" + (cl == null ? "0" : cl.replaceAll("[^0-9.\\-]", "")) + ",\"s\":" + System.nanoTime() / 1000 + "}"));
@@ -456,7 +478,8 @@ public final class StreamServer {
         c.socket.setSoTimeout(30_000);
         c.send(text("{\"t\":\"auth\",\"ok\":true}"));
         c.send(text("{\"t\":\"hello\",\"v\":" + PROTOCOL + ",\"name\":" + q(name) + ",\"audio\":" + audioJson
-                + ",\"vol\":" + volumeText(volume) + ",\"control\":" + control + ",\"touch\":true}"));   // touch: live presses (1.4)
+                + ",\"vol\":" + volumeText(volume) + stepJson(volumeStep) + ",\"control\":" + control
+                + ",\"touch\":true}"));   // touch: live presses (1.4); step/steps: one volume both ways (1.5)
         String vi = videoInfo;
         byte[] cfg = configPacket;
         if (vi != null) c.send(text(vi));

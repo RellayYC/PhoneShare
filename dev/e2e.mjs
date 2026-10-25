@@ -112,17 +112,41 @@ async function runWebCodecs() {
   const lat = await a.waitFor(`__ps.latencyMs != null && __ps.latencyMs`, 10000, 'latency');
   check(lat > 0 && lat < 1000, `latency measured: ${Math.round(lat)} ms`);
 
-  // the phone's volume keys and sound switch reach the player without a reconnect
-  const own = await a.eval(`__ps.gain`);
-  fake.send('volume 0.25');
-  await a.waitFor(`__ps.phoneVolume === 0.25 && Math.abs(__ps.gain - ${own} * 0.25) < 1e-6`, 3000, 'phone volume');
-  check(true, `phone volume 0.25 scales the player: gain ${own} -> ${await a.eval('__ps.gain')}`);
-  // the PC slider is even to the ear: half way is -24 dB, not half the gain
-  const slide = (v) => a.eval(`(() => { const i = document.getElementById('volume'); i.value = ${v}; i.dispatchEvent(new Event('input')); return __ps.gain; })()`);
-  const half = await slide(50);
-  const low = await slide(10);
-  check(Math.abs(half - 0.0631 * 0.25) < 1e-3 && Math.abs(low - 0.0069 * 0.25) < 1e-4, `PC volume slider in decibels: 50 % -> ${half.toFixed(4)}, 10 % -> ${low.toFixed(4)} (times the phone's 0.25)`);
-  await slide(80);
+  // one volume on the phone and the PC: the phone's keys move the PC slider, the PC slider sets the phone's volume
+  const stepGain = (st) => 10 ** (-40 * (1 - st / 15) / 20);
+  const vols = () => fake.log.split('\n').filter((l) => l.startsWith('FAKEPHONE VOLUME ')).map((l) => Number(l.slice(17)));
+  const waitVol = async (want, what) => {
+    for (let i = 0; i < 30; i++) { if (vols().at(-1) === want) return; await sleep(100); }
+    throw new Error(`timeout: ${what} (phone got ${JSON.stringify(vols())})`);
+  };
+  const slider = () => a.eval(`[+document.getElementById('volume').value, +document.getElementById('volume').max, document.getElementById('vol-value').textContent]`);
+  const slide = (v) => a.eval(`(() => { const i = document.getElementById('volume'); i.value = ${v}; i.dispatchEvent(new Event('input')); return true; })()`);
+  const [val, max, label] = await slider();
+  check(val === 15 && max === 15 && label === '100 %', `the PC slider shows the phone's volume: step ${val} of ${max}, ${label}`);
+  fake.send('volume 5');
+  await a.waitFor(`+document.getElementById('volume').value === 5 && document.getElementById('vol-value').textContent === '33 %' && Math.abs(__ps.gain - ${stepGain(5)}) < 1e-4`, 3000, 'phone volume keys');
+  check(true, `the phone's volume keys move the PC slider to step 5 (33 %, gain ${(await a.eval('__ps.gain')).toFixed(3)})`);
+  await slide(10);
+  await waitVol(10, 'PC slider to the phone');
+  await sleep(800);   // the phone's answer has come back, and the hold is over
+  check(+(await slider())[0] === 10 && Math.abs(await a.eval('__ps.gain') - stepGain(10)) < 1e-4, 'the PC slider sets the phone to step 10, and the answer does not move it');
+  const before = vols().length;
+  for (let v = 1; v <= 15; v++) await slide(v);
+  await waitVol(15, 'a fast drag');
+  await sleep(300);
+  const sentSteps = vols().slice(before);
+  check(sentSteps.length < 15 && sentSteps.at(-1) === 15 && +(await slider())[0] === 15, `a fast drag over 15 steps sends ${sentSteps.length} of them, the last where it stopped (${sentSteps.join(' ')})`);
+  const asked = vols().length;
+  await a.eval(`document.getElementById('mute').click(); true`);
+  await sleep(300);
+  check(await a.eval('__ps.gain') === 0 && vols().length === asked, 'mute silences this PC only: the phone keeps its volume');
+  await a.eval(`document.getElementById('mute').click(); true`);
+  const [wx, wy] = await a.eval(`(() => { const r = document.getElementById('mute').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  await a.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wx, y: wy });   // the controls come back under the mouse first
+  await sleep(300);
+  await a.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: wx, y: wy, deltaX: 0, deltaY: 120 });
+  await waitVol(14, 'wheel on the speaker');
+  check(Math.abs(await a.eval('__ps.gain') - stepGain(14)) < 1e-4, 'the wheel over the speaker turns the shared volume down one step');
   fake.send('audio off');
   await a.waitFor(`document.getElementById('toast').textContent === 'Телефон выключил звук'`, 3000, 'sound off notice');
   const quiet = await ps(a, 'audioChunks');

@@ -201,6 +201,7 @@ public final class CaptureService extends Service {
         audioOn = wantAudio && startAudio();
         server.setAudioFormat(audioOn ? 48000 : 0, 2);
         applySpeaker();
+        server.onVolume = step -> main.post(() -> setLevel(step));
         server.onControl = m -> main.post(() -> {
             ControlService c = ControlService.instance;
             if (c != null && controlReady()) c.perform(m);
@@ -332,7 +333,27 @@ public final class CaptureService extends Service {
         if (s == null || am == null) return;
         boolean ours = prefs(this).getBoolean("muted_by_app", false);
         int step = !ours && am.isStreamMute(AudioManager.STREAM_MUSIC) ? 0 : level;   // muted by the person: silence on the PC too
-        s.setVolume(StreamServer.stepGain(step, am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
+        int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        s.setVolume(StreamServer.stepGain(step, max), step, max);
+    }
+
+    /**
+     * A PC moved its volume slider: the phone's media volume takes that step, as if its keys had been pressed, so the
+     * phone and every PC keep one volume. "Only PC" stays silent here: setting a volume lifts the mute, so it goes back on.
+     */
+    private void setLevel(int step) {
+        if (am == null) return;
+        int n = Math.max(am.getStreamMinVolume(AudioManager.STREAM_MUSIC), Math.min(am.getStreamMaxVolume(AudioManager.STREAM_MUSIC), step));
+        level = n;
+        try {
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, n, 0);
+        } catch (SecurityException e) {
+            // Do Not Disturb may refuse it: the PCs still follow the step asked for
+        }
+        if (prefs(this).getBoolean("muted_by_app", false) && !am.isStreamMute(AudioManager.STREAM_MUSIC)) {
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+        }
+        sendVolume();
     }
 
     private void stopAudio() {

@@ -156,7 +156,7 @@
         <button id="mute" class="icon-btn" type="button" aria-label="Выключить звук" title="Звук (M)">
           <svg class="icon swap on"><use href="#i-sound"/></svg><svg class="icon swap off"><use href="#i-muted"/></svg>
         </button>
-        <span class="vol-pop"><input id="volume" type="range" min="0" max="100" value="80" aria-label="Громкость"></span>
+        <span class="vol-pop"><input id="volume" type="range" min="0" max="100" value="80" aria-label="Громкость"><output id="vol-value" class="vol-value" for="volume">80 %</output></span>
       </div>
       <button id="shot" class="icon-btn" type="button" aria-label="Сохранить скриншот" title="Скриншот (S)"><svg class="icon"><use href="#i-shot"/></svg></button>
       <button id="rec" class="icon-btn rec-btn" type="button" aria-pressed="false" aria-label="Начать запись" title="Запись (R)" hidden><svg class="icon"><use href="#i-rec"/></svg><span id="rec-time" class="rec-time">0:00</span></button>

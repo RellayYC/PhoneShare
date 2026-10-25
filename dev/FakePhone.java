@@ -13,8 +13,9 @@ import java.util.List;
 
 /**
  * Stands in for the phone on a desktop: the real StreamServer fed by ffmpeg test video (H.264 Annex B, like MediaCodec)
- * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop, "volume 0.25",
+ * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop, "volume 5" (a step of 15),
  * "audio off|on" or "control off|on" to act like the phone's volume keys, sound switch and «Управление с ПК».
+ * A PC's volume slider sets the step here too, printed as "FAKEPHONE VOLUME 10" and sent back like a phone does.
  *
  * java app.phoneshare.FakePhone [--pin 135790] [--port 8080] [--udp 47800] [--size 720x1280] [--rotate-every 0] [--name FakePhone] [--web web] [--control]
  */
@@ -55,6 +56,12 @@ public final class FakePhone {
                 System.out.flush();
             }
         };
+        volume(server, STEPS);
+        server.onVolume = step -> {   // a PC's slider: the phone takes the step and tells every viewer, like CaptureService
+            System.out.println("FAKEPHONE VOLUME " + step);
+            System.out.flush();
+            volume(server, step);
+        };
         int actual = server.start(port, udp);
         System.out.println("FAKEPHONE READY port=" + actual);
 
@@ -68,14 +75,14 @@ public final class FakePhone {
         }
 
         // stdin "quit" or EOF (parent died) ends the run and the ffmpeg children with it;
-        // "volume 0.25", "audio off|on" and "control off|on" act like the phone's volume keys and switches
+        // "volume 5", "audio off|on" and "control off|on" act like the phone's volume keys and switches
         StringBuilder line = new StringBuilder();
         int c;
         while ((c = System.in.read()) >= 0) {
             if (c == '\n') {
                 String cmd = line.toString().trim();
                 if (cmd.equals("quit")) break;
-                if (cmd.startsWith("volume ")) server.setVolume(Float.parseFloat(cmd.substring(7)));
+                if (cmd.startsWith("volume ")) volume(server, Integer.parseInt(cmd.substring(7).trim()));
                 if (cmd.equals("control off") || cmd.equals("control on")) server.setControl(cmd.equals("control on"));
                 if (cmd.equals("audio off") || cmd.equals("audio on")) {
                     audioOn = cmd.equals("audio on");
@@ -93,6 +100,12 @@ public final class FakePhone {
         }
         System.out.println("FAKEPHONE STOPPED");
         System.exit(0);
+    }
+
+    static final int STEPS = 15;   // like most phones' media volume
+
+    static void volume(StreamServer server, int step) {
+        server.setVolume(StreamServer.stepGain(step, STEPS), step, STEPS);
     }
 
     static void video(StreamServer server, int w, int h, int rotateEvery) {

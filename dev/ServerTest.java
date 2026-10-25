@@ -124,9 +124,25 @@ public final class ServerTest {
         check(time.text().contains("\"c\":123.5") && time.text().contains("\"s\":"), "time reply");
 
         // Sound changes reach a viewer that is already watching
-        check(hello.contains("\"vol\":1.000"), "hello carries the phone volume");
+        check(hello.contains("\"vol\":1.000") && !hello.contains("\"steps\""), "hello carries the phone volume (steps only once known)");
         srv.setVolume(0.25f);
         check(readText(pre, "\"t\":\"volume\"").text().contains("\"v\":0.250"), "phone volume change sent live");
+        // one volume both ways: the phone's step goes out, a viewer's step comes back
+        java.util.List<Integer> asked = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        srv.onVolume = asked::add;
+        srv.setVolume(StreamServer.stepGain(10, 15), 10, 15);
+        String live = readText(pre, "\"t\":\"volume\"").text();
+        check(live.contains("\"step\":10") && live.contains("\"steps\":15"), "the phone's volume step goes out live: " + live);
+        srv.setVolume(StreamServer.stepGain(10, 15), 10, 15);
+        check(pre.readOrNull(300) == null, "the same step again sends nothing");
+        pre.sendText("{\"t\":\"volume\",\"step\":7}");
+        pre.sendText("{\"t\":\"volume\",\"step\":16}");
+        pre.sendText("{\"t\":\"volume\",\"step\":-1}");
+        pre.sendText("{\"t\":\"volume\",\"step\":\"x\"}");
+        Ws nobody = new Ws(port, 0);
+        nobody.sendText("{\"t\":\"volume\",\"step\":3}");
+        Thread.sleep(300);
+        check(asked.equals(java.util.Arrays.asList(7)), "a viewer's slider asks the phone for a step; out of range, junk and no PIN are ignored: " + asked);
         srv.setAudioFormat(0, 2);
         check(readText(pre, "\"t\":\"audio\"").text().contains("\"audio\":null"), "sound off sent live");
         srv.setAudioFormat(48000, 2);
