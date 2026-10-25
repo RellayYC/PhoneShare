@@ -61,6 +61,7 @@ public final class StreamServer {
     private volatile String pin;
     private volatile String audioJson = "null";
     private volatile float volume = 1;   // the phone's media volume as linear gain; viewers multiply their own by it
+    private volatile boolean control;    // the phone takes taps, keys and buttons from viewers
     private volatile String videoInfo;      // {"t":"video",...} for the current encoder
     private volatile byte[] configPacket;   // SPS+PPS packet for the current encoder
 
@@ -68,6 +69,8 @@ public final class StreamServer {
     public volatile Runnable onKeyframeNeeded;
     /** Called when the list of authenticated viewers changes. */
     public volatile Runnable onViewersChanged;
+    /** Gets "gesture", "text" and "nav" messages from viewers that entered the PIN; the phone performs them. */
+    public volatile java.util.function.Consumer<String> onControl;
 
     private final CopyOnWriteArrayList<Client> clients = new CopyOnWriteArrayList<>();
     private final Map<String, long[]> failures = new HashMap<>();   // ip -> {count, lockedUntilMs}
@@ -146,6 +149,14 @@ public final class StreamServer {
         if (v == volume) return;
         volume = v;
         Out o = text("{\"t\":\"volume\",\"v\":" + volumeText(v) + "}");
+        for (Client c : authed()) c.send(o);
+    }
+
+    /** Whether viewers may control the phone; they hear about a change at once. */
+    public void setControl(boolean on) {
+        if (on == control) return;
+        control = on;
+        Out o = text("{\"t\":\"control\",\"on\":" + on + "}");
         for (Client c : authed()) c.send(o);
     }
 
@@ -394,6 +405,9 @@ public final class StreamServer {
             c.waitingKey = true;
             c.needConfig = true;
             requestKeyframe();
+        } else if ("gesture".equals(t) || "text".equals(t) || "nav".equals(t)) {
+            java.util.function.Consumer<String> k = onControl;
+            if (control && k != null) k.accept(msg);   // the phone's owner allowed it; only PIN holders get this far
         } else if ("ping".equals(t)) {
             String cl = field(msg, "c");
             c.send(text("{\"t\":\"time\",\"c\":" + (cl == null ? "0" : cl.replaceAll("[^0-9.\\-]", "")) + ",\"s\":" + System.nanoTime() / 1000 + "}"));
@@ -430,7 +444,7 @@ public final class StreamServer {
         c.socket.setSoTimeout(30_000);
         c.send(text("{\"t\":\"auth\",\"ok\":true}"));
         c.send(text("{\"t\":\"hello\",\"v\":" + PROTOCOL + ",\"name\":" + q(name) + ",\"audio\":" + audioJson
-                + ",\"vol\":" + volumeText(volume) + "}"));
+                + ",\"vol\":" + volumeText(volume) + ",\"control\":" + control + "}"));
         String vi = videoInfo;
         byte[] cfg = configPacket;
         if (vi != null) c.send(text(vi));
@@ -599,7 +613,31 @@ public final class StreamServer {
     static String field(String json, String key) {
         Matcher m = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(?:\"((?:[^\"\\\\]|\\\\.)*)\"|(-?[0-9.]+))").matcher(json);
         if (!m.find()) return null;
-        return m.group(1) != null ? m.group(1).replace("\\\"", "\"").replace("\\\\", "\\") : m.group(2);
+        return m.group(1) != null ? unescape(m.group(1)) : m.group(2);
+    }
+
+    /** The escapes JSON.stringify writes: \" \\ \/ \b \f \n \r \t and \\uXXXX (text pasted on the PC has line breaks). */
+    private static String unescape(String s) {
+        if (s.indexOf('\\') < 0) return s;
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch != '\\' || i + 1 == s.length()) {
+                b.append(ch);
+                continue;
+            }
+            char e = s.charAt(++i);
+            if (e == 'n') b.append('\n');
+            else if (e == 'r') b.append('\r');
+            else if (e == 't') b.append('\t');
+            else if (e == 'b') b.append('\b');
+            else if (e == 'f') b.append('\f');
+            else if (e == 'u' && i + 4 < s.length() && s.substring(i + 1, i + 5).matches("[0-9a-fA-F]{4}")) {
+                b.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
+                i += 4;
+            } else b.append(e);   // \" \\ \/
+        }
+        return b.toString();
     }
 
     static String cleanName(String s) {

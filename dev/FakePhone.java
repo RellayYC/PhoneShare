@@ -13,10 +13,10 @@ import java.util.List;
 
 /**
  * Stands in for the phone on a desktop: the real StreamServer fed by ffmpeg test video (H.264 Annex B, like MediaCodec)
- * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop, "volume 0.25" or
- * "audio off|on" to act like the phone's volume keys and sound switch.
+ * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop, "volume 0.25",
+ * "audio off|on" or "control off|on" to act like the phone's volume keys, sound switch and «Управление с ПК».
  *
- * java app.phoneshare.FakePhone [--pin 135790] [--port 8080] [--udp 47800] [--size 720x1280] [--rotate-every 0] [--name FakePhone] [--web web]
+ * java app.phoneshare.FakePhone [--pin 135790] [--port 8080] [--udp 47800] [--size 720x1280] [--rotate-every 0] [--name FakePhone] [--web web] [--control]
  */
 public final class FakePhone {
     static volatile boolean running = true;
@@ -47,6 +47,14 @@ public final class FakePhone {
             }
         };
         server.setAudioFormat(audio ? 48000 : 0, 2);
+        server.setControl(Arrays.asList(a).contains("--control"));
+        server.onControl = m -> {   // what a phone would perform, printed for the checks
+            byte[] out = ("FAKEPHONE CONTROL " + m + "\n").getBytes(StandardCharsets.UTF_8);
+            synchronized (System.out) {
+                System.out.write(out, 0, out.length);
+                System.out.flush();
+            }
+        };
         int actual = server.start(port, udp);
         System.out.println("FAKEPHONE READY port=" + actual);
 
@@ -60,7 +68,7 @@ public final class FakePhone {
         }
 
         // stdin "quit" or EOF (parent died) ends the run and the ffmpeg children with it;
-        // "volume 0.25" and "audio off|on" act like the phone's volume keys and sound switch
+        // "volume 0.25", "audio off|on" and "control off|on" act like the phone's volume keys and switches
         StringBuilder line = new StringBuilder();
         int c;
         while ((c = System.in.read()) >= 0) {
@@ -68,6 +76,7 @@ public final class FakePhone {
                 String cmd = line.toString().trim();
                 if (cmd.equals("quit")) break;
                 if (cmd.startsWith("volume ")) server.setVolume(Float.parseFloat(cmd.substring(7)));
+                if (cmd.equals("control off") || cmd.equals("control on")) server.setControl(cmd.equals("control on"));
                 if (cmd.equals("audio off") || cmd.equals("audio on")) {
                     audioOn = cmd.equals("audio on");
                     server.setAudioFormat(audio && audioOn ? 48000 : 0, 2);

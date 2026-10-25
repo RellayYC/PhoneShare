@@ -27,6 +27,14 @@
     <string name="audio_pc">Только ПК</string>
     <string name="audio_hint">Громкость на ПК повторяет громкость телефона. В режиме «Только ПК» телефон молчит, а его кнопки громкости меняют звук на ПК. Звонки и приложения, запретившие запись, Android не передаёт.</string>
     <string name="audio_denied">Нет разрешения на запись звука, поэтому идёт только картинка. Его можно выдать в настройках приложения.</string>
+    <string name="control">Управление с ПК</string>
+    <string name="control_hint_off">С ПК можно будет нажимать, листать, печатать и нажимать «Назад», «Домой», «Недавние». Только для тех, кто ввёл PIN.</string>
+    <string name="control_setup">Включи «PhoneShare: управление с ПК» в Спецвозможностях (раздел установленных приложений). Если Android пишет «Ограниченная настройка», открой «О приложении» PhoneShare, меню ⋮ → «Разрешить ограниченные настройки», и попробуй снова.</string>
+    <string name="control_on">Управление включено: в плеере на ПК нажми «Управлять». Щелчок — касание, перетаскивание — свайп, правая кнопка — «Назад».</string>
+    <string name="control_single_app">Сейчас показывается одно приложение: управление работает только при показе всего экрана.</string>
+    <string name="control_open_settings">Открыть спецвозможности</string>
+    <string name="control_service_label">PhoneShare: управление с ПК</string>
+    <string name="control_service_description">Позволяет нажимать, листать и печатать на этом телефоне с ПК, где идёт показ PhoneShare. Работает, только когда в PhoneShare включено «Управление с ПК», и только для тех, кто ввёл PIN.</string>
     <string name="viewers_label">Сейчас смотрят</string>
     <string name="viewers_none">Пока никто не смотрит.</string>
     <string name="projection_denied">Без разрешения на запись экрана трансляция не начнётся.</string>

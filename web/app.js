@@ -443,6 +443,13 @@ class Session {
         document.title = `${m.name} — PhoneShare`;
         if (m.audio) audio.format(m.audio.rate, m.audio.ch);
         updateUnmuteChip();
+        this.control = !!m.control;
+        renderControl(false);
+        break;
+      case 'control':   // the phone's owner switched «Управление с ПК» mid-stream
+        if (!!m.on === !!this.control) break;
+        this.control = !!m.on;
+        renderControl(true);
         break;
       case 'video':
         stats.width = m.w;
@@ -480,6 +487,11 @@ class Session {
 
   ping() {
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ t: 'ping', c: performance.now() }));
+  }
+
+  /** A touch, a system button or typing for the phone; it performs them only while its owner allows control. */
+  command(m) {
+    if (this.control && this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m));
   }
 
   requestKey() {
@@ -552,6 +564,7 @@ function startSession(dev, pin, remember) {
   show('player');
   overlay(`Подключаюсь к «${dev.name || dev.host}»`, 'Обычно это занимает секунду.', null, DESKTOP ? ['Отмена', goHome] : null);
   session = new Session(dev, pin, remember);
+  renderControl(false);
   poke();
 }
 
@@ -560,6 +573,7 @@ function goHome() {
   if (session) saveSnap(session.dev);
   if (session) session.close();
   session = null;
+  renderControl(false);
   if (player) player.stop();
   player = null;
   hideOverlay();
@@ -1046,8 +1060,180 @@ $('ontop').addEventListener('click', () => {
 
 $('player-back').addEventListener('click', goHome);
 
+// ---------------------------------------------------------------- control of the phone
+
+// Off: the picture is only watched. On («Управлять»): a click is a tap, a drag a swipe, the wheel scrolls, the right
+// button is «Назад», the middle one «Домой», and keys type into the phone's focused field. A gesture goes out when the
+// button is released, with the timing it was drawn with; the phone replays it (an accessibility service there).
+const ctl = { on: false, pts: null, t0: 0, id: 0, wheelAt: 0 };
+const MAX_POINTS = 400;
+stats.control = false;
+stats.controlling = false;
+
+/** The phone allows control or not: the plate shows or hides, and the mode ends when control is taken away. */
+function renderControl(announce) {
+  const allowed = !!(session && session.control);
+  if (announce) toast(allowed ? 'Телефон разрешил управление с ПК' : 'Телефон выключил управление с ПК');
+  $('ctl').hidden = !allowed;
+  stats.control = allowed;
+  setControlling(allowed && store.get('controlling', false));
+}
+
+function setControlling(on) {
+  if (on === ctl.on) return;
+  ctl.on = on;
+  ctl.pts = null;
+  stats.controlling = on;
+  $('player').classList.toggle('controlling', on);
+  $('control').setAttribute('aria-pressed', String(on));
+  if (on) {
+    reserveHud();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();   // keys go to the phone, not to this button
+  }
+  poke();
+}
+
+$('control').addEventListener('click', () => {
+  setControlling(!ctl.on);
+  store.set('controlling', ctl.on);
+});
+document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => session && session.command({ t: 'nav', a: b.dataset.nav })));
+
+/** While controlling, the picture sits between the two control bars: their measured heights, wrapped rows included. */
+function reserveHud() {
+  const p = $('player');
+  const top = document.querySelector('.hud-top');
+  const bottom = document.querySelector('.hud-bottom');
+  p.style.setProperty('--reserve-top', `${top.offsetTop + top.offsetHeight + 8}px`);
+  p.style.setProperty('--reserve-bottom', `${p.clientHeight - bottom.offsetTop + 8}px`);
+}
+window.addEventListener('resize', reserveHud);
+new ResizeObserver(reserveHud).observe(document.querySelector('.hud-bottom'));
+
+const picture = () => (canWebCodecs ? $('canvas') : $('video'));
+
+/** Where a point of the window falls on the phone's screen, as fractions of it; null on the bars around the picture. */
+function phonePoint(e, clamp) {
+  const r = picture().getBoundingClientRect();
+  const w = stats.width;
+  const h = stats.height;
+  if (!w || !h || !r.width || !r.height) return null;
+  let cw = r.width;
+  let ch = r.height;
+  const fit = $('player').dataset.fit;
+  if (fit === 'contain' || fit === 'cover') {   // object-fit keeps the proportions and centres the picture
+    const k = (fit === 'contain' ? Math.min : Math.max)(r.width / w, r.height / h);
+    cw = w * k;
+    ch = h * k;
+  }
+  const x = (e.clientX - r.left - (r.width - cw) / 2) / cw;
+  const y = (e.clientY - r.top - (r.height - ch) / 2) / ch;
+  if (clamp) return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))];
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? [x, y] : null;
+}
+
+const pointText = (pts) => pts.map(([x, y, ms]) => `${x.toFixed(4)},${y.toFixed(4)},${Math.round(ms)}`).join(';');
+
+/** A ring where the click reached the phone. */
+function touchMark(e) {
+  const st = $('stage');
+  const r = st.getBoundingClientRect();
+  const t = el('span', 'touch');
+  t.style.left = `${e.clientX - r.left + st.scrollLeft}px`;
+  t.style.top = `${e.clientY - r.top + st.scrollTop}px`;
+  st.append(t);
+  setTimeout(() => t.remove(), 400);
+}
+
+$('stage').addEventListener('pointerdown', (e) => {
+  if (!ctl.on || !session) return;
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  if (e.button === 1 || e.button === 2 || e.button === 3) {
+    if (e.button !== 3) e.preventDefault();   // the back button is held off on its mouseup (below), not here
+    session.command({ t: 'nav', a: e.button === 1 ? 'home' : 'back' });
+    return;
+  }
+  if (e.button !== 0 || ctl.pts) return;
+  const p = phonePoint(e, false);
+  if (!p) return;   // the bars around the picture are not the phone
+  e.preventDefault();
+  $('stage').setPointerCapture(e.pointerId);
+  Object.assign(ctl, { pts: [[p[0], p[1], 0]], t0: e.timeStamp, id: e.pointerId });
+  touchMark(e);
+});
+
+$('stage').addEventListener('pointermove', (e) => {
+  if (!ctl.pts || e.pointerId !== ctl.id) return;
+  const ms = e.timeStamp - ctl.t0;
+  if (ms - ctl.pts[ctl.pts.length - 1][2] < 8) return;   // about one point a frame is plenty
+  const [x, y] = phonePoint(e, true);
+  ctl.pts.push([x, y, ms]);
+  if (ctl.pts.length >= MAX_POINTS) ctl.pts = ctl.pts.filter((_, i) => i % 2 === 0);   // a very long drag: half as dense
+});
+
+function release(e) {
+  if (!ctl.pts || e.pointerId !== ctl.id) return;
+  const pts = ctl.pts;
+  ctl.pts = null;
+  if (e.type === 'pointercancel') return;
+  const p = phonePoint(e, true);
+  if (p) pts.push([p[0], p[1], Math.max(e.timeStamp - ctl.t0, pts[pts.length - 1][2])]);
+  session.command({ t: 'gesture', p: pointText(pts) });
+}
+$('stage').addEventListener('pointerup', release);
+$('stage').addEventListener('pointercancel', release);
+
+// the right button opens no menu, and the mouse's back button does not leave the page
+$('stage').addEventListener('contextmenu', (e) => { if (ctl.on) e.preventDefault(); });
+document.addEventListener('mouseup', (e) => { if (ctl.on && e.button > 2) e.preventDefault(); });
+
+/** The wheel: a short swipe through the point under the cursor, against the turn, like a finger; Shift turns it sideways. */
+$('stage').addEventListener('wheel', (e) => {
+  if (!ctl.on || !session) return;
+  e.preventDefault();
+  const p = phonePoint(e, false);
+  const now = performance.now();
+  if (!p || now - ctl.wheelAt < 320) return;   // one swipe at a time: a new one would cut the last one short
+  const sideways = e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY);
+  const delta = sideways ? e.deltaX || e.deltaY : e.deltaY;
+  if (!delta) return;
+  ctl.wheelAt = now;
+  const d = delta > 0 ? 0.15 : -0.15;
+  const c = (v) => Math.min(1, Math.max(0, v));
+  const [x, y] = p;
+  const pts = sideways ? [[c(x + d), y, 0], [c(x - d), y, 260]] : [[x, c(y + d), 0], [x, c(y - d), 260]];
+  session.command({ t: 'gesture', p: pointText(pts) });
+}, { passive: false });
+
+/** A key for the phone's focused field. Only while the focus is on no control of this page. */
+function typeKey(e) {
+  if (!ctl.on || !session || document.activeElement !== document.body) return false;
+  if ((e.ctrlKey || e.metaKey || e.altKey) && !e.getModifierState('AltGraph')) return false;
+  if (e.key === 'Backspace' || e.key === 'Enter') session.command({ t: 'text', k: e.key.toLowerCase() });
+  else if ([...e.key].length === 1) session.command({ t: 'text', s: e.key });
+  else return false;
+  e.preventDefault();
+  return true;
+}
+
+// a mouse click on the bars leaves no focus behind, so the next keys still go to the phone (Tab still reaches them)
+document.addEventListener('pointerup', (e) => {
+  if (ctl.on && e.pointerType === 'mouse' && e.target.closest('.hud') && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+});
+
+// Ctrl+V: the PC's clipboard text goes into the phone's field
+document.addEventListener('paste', (e) => {
+  if (stats.screen !== 'player' || !ctl.on || !session || document.activeElement !== document.body) return;
+  const text = e.clipboardData && e.clipboardData.getData('text');
+  if (!text) return;
+  e.preventDefault();
+  session.command({ t: 'text', s: text.slice(0, 4000) });
+});
+
 document.addEventListener('keydown', (e) => {
-  if (stats.screen !== 'player' || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (stats.screen !== 'player') return;
+  if (typeKey(e)) return;   // controlling: letters are typing, not shortcuts (AltGr letters too, so before the Ctrl check)
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
   const t = e.target;
   if (t.tagName === 'INPUT' && t.type !== 'range') return;
   const k = e.key.toLowerCase();
@@ -1064,7 +1250,7 @@ function poke() {
   document.body.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(function hide() {
-    if (stats.screen !== 'player' || !$('overlay').hidden) return;
+    if (stats.screen !== 'player' || !$('overlay').hidden || ctl.on) return;   // controlling: the buttons stay at hand
     if (document.querySelector('.hud:hover') || document.querySelector('.hud :focus-visible')) { idleTimer = setTimeout(hide, 1000); return; }
     document.body.classList.add('idle');
   }, 2500);

@@ -76,6 +76,8 @@ public final class MainActivity extends Activity {
     private Boolean shownOn;     // what the status card shows, to fade only on a change
     private String shownPin = "";
     private ProgressBar updateBar;
+    private TextView controlHint;
+    private Button controlSetup;
     private ObjectAnimator onAir;   // the status dot breathing while the phone is on air
     private static final PathInterpolator EASE = new PathInterpolator(0.2f, 0, 0, 1);   // the page's ease
     private final Runnable render = this::render;
@@ -185,6 +187,20 @@ public final class MainActivity extends Activity {
         updateCheck.setOnClickListener(v -> checkUpdate(true));
         updateBar = findViewById(R.id.update_bar);
 
+        // control from the PC: allowed here, performed by the accessibility service the person turns on once
+        Switch control = findViewById(R.id.control);
+        controlHint = findViewById(R.id.control_hint);
+        controlSetup = findViewById(R.id.control_setup);
+        control.setChecked(CaptureService.prefs(this).getBoolean("control", false));
+        control.setOnCheckedChangeListener((b, on) -> {
+            CaptureService.prefs(this).edit().putBoolean("control", on).apply();
+            if (on && !ControlService.enabled(this)) openAccessibility();
+            CaptureService s = CaptureService.instance;
+            if (s != null) s.applyControl();
+            render();
+        });
+        controlSetup.setOnClickListener(v -> openAccessibility());
+
         // cards resize smoothly when their text changes (viewers, hints), not only when one shows or hides
         ViewGroup column = (ViewGroup) ((ViewGroup) findViewById(R.id.root)).getChildAt(0);
         smoothResize(column);
@@ -202,6 +218,10 @@ public final class MainActivity extends Activity {
     }
 
     private final Runnable copyBack = () -> swapText(copy, getString(R.string.copy));
+
+    private void openAccessibility() {
+        startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    }
 
     /** New text with a short fade, for a button that answers its own tap. */
     private static void swapText(TextView v, CharSequence text) {
@@ -454,6 +474,11 @@ public final class MainActivity extends Activity {
         else statusText.setText(R.string.status_off_text);
 
         renderQuality();
+        boolean wantControl = CaptureService.prefs(this).getBoolean("control", false);
+        boolean serviceOn = ControlService.enabled(this);
+        controlSetup.setVisibility(wantControl && !serviceOn ? View.VISIBLE : View.GONE);
+        controlHint.setText(!wantControl ? R.string.control_hint_off : !serviceOn ? R.string.control_setup
+                : on && s.singleApp() ? R.string.control_single_app : R.string.control_on);
         boolean wantAudio = CaptureService.prefs(this).getBoolean("audio", true);
         boolean audioMissing = on && !s.audioOn && wantAudio;
         audioHint.setText(audioMissing ? R.string.audio_denied : R.string.audio_hint);

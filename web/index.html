@@ -23,6 +23,11 @@
     <symbol id="i-top" viewBox="0 0 24 24"><rect x="3.5" y="9" width="11" height="10.5" rx="1.5"/><rect x="9.5" y="4.5" width="11" height="10.5" rx="1.5" class="fill-on"/></symbol>
     <symbol id="i-full" viewBox="0 0 24 24"><path d="M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15"/></symbol>
     <symbol id="i-unfull" viewBox="0 0 24 24"><path d="M9 4.5V9H4.5M19.5 9H15V4.5M15 19.5V15h4.5M4.5 15H9v4.5"/></symbol>
+    <symbol id="i-control" viewBox="0 0 24 24"><path d="M6.5 4.5 18 10.75l-5.25 1.5-2.5 5.25z"/><path d="m12.75 12.25 4.5 4.5"/></symbol>
+    <symbol id="i-nav-back" viewBox="0 0 24 24"><path d="M16 6v12L7 12z"/></symbol>
+    <symbol id="i-nav-home" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.25"/></symbol>
+    <symbol id="i-nav-recents" viewBox="0 0 24 24"><rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.5"/></symbol>
+    <symbol id="i-nav-notif" viewBox="0 0 24 24"><path d="M6.5 16.25h11l-1.5-2.25v-3.5a4 4 0 0 0-8 0V14z"/><path d="M10.25 19a2 2 0 0 0 3.5 0"/></symbol>
   </defs>
 </svg>
 
@@ -132,6 +137,14 @@
       <button type="button" role="radio" data-fit="cover" aria-checked="false">Заполнить</button>
       <button type="button" role="radio" data-fit="fill" aria-checked="false">Растянуть</button>
       <button type="button" role="radio" data-fit="native" aria-checked="false" title="Пиксель в пиксель">1:1</button>
+    </div>
+    <!-- shown when the phone's owner allows control: its system buttons and the mode that sends clicks and keys -->
+    <div id="ctl" class="ctl" role="group" aria-label="Управление телефоном" hidden>
+      <button type="button" class="icon-btn" data-nav="back" aria-label="Назад" title="Назад (правая кнопка мыши)"><svg class="icon"><use href="#i-nav-back"/></svg></button>
+      <button type="button" class="icon-btn" data-nav="home" aria-label="Домой" title="Домой (средняя кнопка мыши)"><svg class="icon"><use href="#i-nav-home"/></svg></button>
+      <button type="button" class="icon-btn" data-nav="recents" aria-label="Недавние приложения" title="Недавние приложения"><svg class="icon"><use href="#i-nav-recents"/></svg></button>
+      <button type="button" class="icon-btn" data-nav="notifications" aria-label="Уведомления" title="Уведомления"><svg class="icon"><use href="#i-nav-notif"/></svg></button>
+      <button id="control" class="ctl-toggle" type="button" aria-pressed="false" aria-label="Управлять телефоном" title="Щелчки, прокрутка и клавиатура идут на телефон"><svg class="icon"><use href="#i-control"/></svg><span>Управлять</span></button>
     </div>
     <div class="tools">
       <div class="volume">

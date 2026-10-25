@@ -39,6 +39,7 @@ final class ScreenEncoder {
     private int width, height, bitrate, quietSeconds;
     private int[] source;   // the captured size the encoder was last configured for
     private boolean contentSized;   // Android 14+ reports the captured size itself (single-app capture too)
+    private volatile boolean singleApp;   // the person chose to show one app: the picture is not the screen
     private volatile boolean running;
 
     ScreenEncoder(Context ctx, MediaProjection projection, StreamServer server, Handler handler, int maxSize, int bitrate, int fps) {
@@ -102,6 +103,8 @@ final class ScreenEncoder {
     /** MediaProjection.Callback#onCapturedContentResize (Android 14+). Called on the handler thread. */
     void onContentResize(int w, int h) {
         contentSized = true;
+        int[] d = displaySize(ctx);
+        singleApp = !(w == d[0] && h == d[1] || w == d[1] && h == d[0]);
         resizeTo(new int[] {w, h});
     }
 
@@ -146,6 +149,11 @@ final class ScreenEncoder {
             handler.postDelayed(this, 1000);
         }
     };
+
+    /** Whether only one app is shown (Android 14+): taps on the picture would not land where they look. */
+    boolean singleApp() {
+        return singleApp;
+    }
 
     /** The full screen in pixels, as the phone holds it now. */
     static int[] displaySize(Context ctx) {

@@ -37,6 +37,9 @@ public final class ServerTest {
         check("123456".equals(StreamServer.field("{\"t\":\"auth\",\"pin\":\"123456\",\"name\":\"A \\\"B\\\"\"}", "pin")), "field pin");
         check("A \"B\"".equals(StreamServer.field("{\"t\":\"auth\",\"pin\":\"123456\",\"name\":\"A \\\"B\\\"\"}", "name")), "field escaped name");
         check("12.5".equals(StreamServer.field("{\"t\":\"ping\",\"c\":12.5}", "c")), "field number");
+        // what JSON.stringify writes for pasted text: line breaks, tabs, backslashes, control characters
+        check("a\nb\tc\\d\"e/\u0001ё".equals(StreamServer.field("{\"t\":\"text\",\"s\":\"a\\nb\\tc\\\\d\\\"e\\/\\u0001ё\"}", "s")), "field JSON escapes");
+        check("\\n".equals(StreamServer.field("{\"s\":\"\\\\n\"}", "s")), "field escaped backslash before n");
         check(StreamServer.q("a\"b\n").equals("\"a\\\"b\\u000a\""), "json quote");
 
         check(StreamServer.nextBitrate(8_000_000, 8_000_000, true, 0) == 5_600_000, "bitrate drops to 70%");
@@ -128,6 +131,26 @@ public final class ServerTest {
         check(readText(pre, "\"t\":\"audio\"").text().contains("\"audio\":null"), "sound off sent live");
         srv.setAudioFormat(48000, 2);
         check(readText(pre, "\"t\":\"audio\"").text().contains("\"rate\":48000"), "sound on sent live");
+        // control: forwarded only while the phone allows it, and only from a viewer that entered the PIN
+        java.util.List<String> commands = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        srv.onControl = commands::add;
+        check(hello.contains("\"control\":false"), "hello says whether the phone takes control");
+        pre.sendText("{\"t\":\"nav\",\"a\":\"back\"}");
+        Thread.sleep(200);
+        check(commands.isEmpty(), "control off: commands are ignored");
+        srv.setControl(true);
+        check(readText(pre, "\"t\":\"control\"").text().contains("\"on\":true"), "control on sent live");
+        pre.sendText("{\"t\":\"gesture\",\"p\":\"0.5,0.5,0\"}");
+        pre.sendText("{\"t\":\"text\",\"s\":\"привет\"}");
+        long until = System.currentTimeMillis() + 2000;
+        while (commands.size() < 2 && System.currentTimeMillis() < until) Thread.sleep(20);
+        check(commands.size() == 2 && commands.get(0).contains("0.5,0.5,0") && commands.get(1).contains("привет"), "control on: commands reach the phone: " + commands);
+        Ws stranger = new Ws(port, 0);
+        stranger.sendText("{\"t\":\"nav\",\"a\":\"home\"}");
+        Thread.sleep(300);
+        check(commands.size() == 2, "a viewer without the PIN cannot control");
+        srv.setControl(false);
+        check(readText(pre, "\"t\":\"control\"").text().contains("\"on\":false"), "control off sent live");
         check(StreamServer.gain(0) == 1 && Math.abs(StreamServer.gain(-20) - 0.1f) < 1e-4 && StreamServer.gain(Float.NEGATIVE_INFINITY) == 0,
                 "volume steps in dB become gain: 0 dB = 1, -20 dB = 0.1, muted = 0");
 

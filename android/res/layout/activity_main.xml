@@ -289,6 +289,38 @@
                 android:text="@string/audio_hint" />
         </LinearLayout>
 
+        <!-- taps, typing and the system buttons from the PC; off until the person turns it on -->
+        <LinearLayout
+            style="@style/Card"
+            android:animateLayoutChanges="true">
+
+            <Switch
+                android:id="@+id/control"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="@string/control"
+                android:textColor="@color/ink"
+                android:textSize="16sp"
+                android:thumbTint="@color/switch_thumb"
+                android:trackTint="@color/switch_track" />
+
+            <TextView
+                android:id="@+id/control_hint"
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/control_hint_off" />
+
+            <Button
+                android:id="@+id/control_setup"
+                style="@style/Button.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/control_open_settings"
+                android:visibility="gone" />
+        </LinearLayout>
+
         <LinearLayout style="@style/Card">
 
             <TextView

@@ -332,7 +332,19 @@ body.checking #update-check .icon { animation: spin 900ms linear infinite; }
   --hud-hover: rgb(255 255 255 / 0.1);
   --hud-edge: inset 0 0 0 1px rgb(255 255 255 / 0.07);
 }
-.stage { position: absolute; inset: 0; }
+.stage {
+  position: absolute; inset: 0;
+  transition-property: top, bottom;
+  transition-duration: 240ms;
+  transition-timing-function: var(--ease);
+}
+/* control: the picture steps out from under the controls (JS measures them), so all of the phone's screen is reachable */
+.player.controlling .stage { top: var(--reserve-top, 72px); bottom: var(--reserve-bottom, 76px); touch-action: none; user-select: none; -webkit-user-select: none; }
+.touch {   /* where a click reached the phone */
+  position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%;
+  box-shadow: 0 0 0 2px #FFB61A, inset 0 0 0 1px rgb(0 0 0 / 0.3); pointer-events: none;
+  animation: touch 380ms var(--ease) forwards;
+}
 .stage canvas, .stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .player[data-fit="cover"] .stage canvas, .player[data-fit="cover"] .stage video { object-fit: cover; }
 .player[data-fit="fill"] .stage canvas, .player[data-fit="fill"] .stage video { object-fit: fill; }
@@ -362,7 +374,7 @@ body.idle .hud-bottom { translate: 0 6px; }
 body.idle .player { cursor: none; }
 
 /* glass plates: 16 = 12 inner control + 4 padding */
-.player-title, #player-back, .stats, .hud-bottom > .seg, .hud-bottom > .tools {
+.player-title, #player-back, .stats, .hud-bottom > .seg, .hud-bottom > .ctl, .hud-bottom > .tools {
   background: var(--hud); box-shadow: var(--hud-edge), 0 8px 24px rgb(0 0 0 / 0.35);
   -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -383,7 +395,7 @@ body.idle .player { cursor: none; }
 .stats dd { margin: 0; font: 600 15px/1.25 var(--font-din); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats dd.warn { color: #FFB61A; }
 
-.hud-bottom > .seg, .hud-bottom > .tools { border-radius: 16px; padding: 4px; }
+.hud-bottom > .seg, .hud-bottom > .ctl, .hud-bottom > .tools { border-radius: 16px; padding: 4px; }
 .seg { position: relative; display: flex; gap: 2px; }
 .seg-pill {   /* one light pill under the chosen scale; slides between choices */
   position: absolute; top: 4px; bottom: 4px; left: 0; width: var(--w, 0); translate: var(--x, 0) 0;
@@ -414,6 +426,23 @@ body.idle .player { cursor: none; }
 .rec-btn.on .fill-on { fill: currentColor; }
 #ontop[aria-pressed="true"] { color: #FFB61A; }
 #ontop[aria-pressed="true"] .fill-on { fill: currentColor; }
+.ctl { display: flex; align-items: center; gap: 2px; }
+.ctl[hidden] { display: none; }
+.ctl .icon-btn { width: 40px; height: 40px; }
+.ctl .icon-btn:hover { background: var(--hud-hover); }
+.ctl .icon-btn::after { content: ""; position: absolute; inset: -2px; }
+.ctl-toggle {   /* lit while clicks and keys go to the phone */
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin-left: 2px; padding: 0 14px 0 10px;
+  border: 0; border-radius: 12px; background: transparent; color: #C9CFDA; font-weight: 600;
+  transition-property: background-color, color, scale;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease);
+}
+.ctl-toggle .icon { stroke-width: 2; }
+.ctl-toggle:hover { color: #fff; background: var(--hud-hover); }
+.ctl-toggle:active { scale: 0.96; }
+.ctl-toggle[aria-pressed="true"] { color: #141821; background: #FFB61A; }
+.ctl-toggle[aria-pressed="true"]:hover { background: #F0A500; }
 .volume { display: flex; align-items: center; transition-property: opacity; transition-duration: 200ms; }
 .player.silent .volume { opacity: 0.4; }   /* the phone's sound is off: still usable, visibly idle */
 .volume input { width: 92px; margin: 0 8px 0 2px; accent-color: #EDEFF3; }
@@ -465,6 +494,7 @@ body[data-screen="loading"] { visibility: hidden; }
 @keyframes pop { from { opacity: 0; scale: 0.96; } }
 @keyframes grow { from { scale: 0 1; } }
 @keyframes typed { from { scale: 0.9; opacity: 0.4; } }
+@keyframes touch { from { scale: 0.4; opacity: 1; } to { scale: 1; opacity: 0; } }
 @keyframes onair {
   from { box-shadow: 0 0 0 0 rgb(255 182 26 / 0.7), 0 0 0 rgb(255 182 26 / 0); }
   60% { box-shadow: 0 0 0 9px rgb(255 182 26 / 0), 0 0 12px rgb(255 182 26 / 0.6); }
@@ -481,6 +511,7 @@ body[data-screen="player"] #player { animation: fade 200ms var(--ease) both; }
 .overlay:not([hidden]) { animation: fade 180ms var(--ease); }
 .overlay:not([hidden]) .overlay-box { animation: pop 220ms var(--ease); }
 .chip:not([hidden]) { animation: pop 220ms var(--ease); }
+.ctl:not([hidden]) { animation: pop 220ms var(--ease); }
 .rec-bar:not([hidden]) { transform-origin: left; animation: grow 400ms var(--ease); }   /* the take starts: the red bar runs across */
 .player.live .lamp { animation: onair 800ms var(--ease); }   /* on air: the lamp flares once */
 .cells span.typed { animation: typed 140ms var(--ease); }
@@ -493,6 +524,8 @@ body[data-screen="player"] #player { animation: fade 200ms var(--ease) both; }
   .stats dt { display: none; }
   .volume input { display: none; }
   .seg button { padding: 0 10px; }
+  .ctl-toggle { padding: 0 10px; }
+  .ctl-toggle span { display: none; }
   .player-title { font-size: 15px; }
 }
 @media (max-width: 380px) {

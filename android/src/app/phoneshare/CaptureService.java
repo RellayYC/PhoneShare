@@ -174,6 +174,7 @@ public final class CaptureService extends Service {
 
             @Override public void onCapturedContentResize(int width, int height) {
                 if (encoder != null) encoder.onContentResize(width, height);
+                applyControl();   // one app instead of the screen: taps would miss, so control pauses
             }
         }, main);
 
@@ -201,13 +202,37 @@ public final class CaptureService extends Service {
         audioOn = wantAudio && startAudio();
         server.setAudioFormat(audioOn ? 48000 : 0, 2);
         applySpeaker();
+        server.onControl = m -> main.post(() -> {
+            ControlService c = ControlService.instance;
+            if (c != null && controlReady()) c.perform(m);
+        });
         port = server.start(StreamServer.HTTP_PORT, StreamServer.DISCOVERY_PORT);
 
         int[] v = video(this);
         encoder = new ScreenEncoder(this, projection, server, main, v[0], StreamServer.targetBitrate(v[0], v[1]), v[1]);
         server.onKeyframeNeeded = encoder::requestKeyframe;
         encoder.start();
+        applyControl();
         updateNotification();
+    }
+
+    // ---- control from the PC: taps, keys and the system buttons, performed by ControlService ----
+
+    /** The person allowed it, the accessibility service runs, and the picture is the whole screen. */
+    boolean controlReady() {
+        return prefs(this).getBoolean("control", false) && ControlService.instance != null && !singleApp();
+    }
+
+    boolean singleApp() {
+        ScreenEncoder e = encoder;
+        return e != null && e.singleApp();
+    }
+
+    /** Tells the viewers whether they may control the phone now; they show or hide their control button. */
+    void applyControl() {
+        StreamServer s = server;
+        if (s != null) s.setControl(controlReady());
+        changed();
     }
 
     @Override public void onDestroy() {
