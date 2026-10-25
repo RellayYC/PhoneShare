@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the app icon in the screen's own colours, like the page's header -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="30dp" android:height="30dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:fillColor="@color/ink" android:pathData="M20,5h16a8,8 0 0,1 8,8v38a8,8 0 0,1 -8,8h-16a8,8 0 0,1 -8,-8v-38a8,8 0 0,1 8,-8z"/>
+    <path android:fillColor="@color/paper" android:pathData="M20,11h16a3.5,3.5 0 0,1 3.5,3.5v35a3.5,3.5 0 0,1 -3.5,3.5h-16a3.5,3.5 0 0,1 -3.5,-3.5v-35a3.5,3.5 0 0,1 3.5,-3.5z"/>
+    <path android:fillColor="@color/lamp" android:strokeColor="@color/paper" android:strokeWidth="3.5"
+        android:pathData="M45,5.5a9.5,9.5 0 1,0 0,19a9.5,9.5 0 1,0 0,-19z"/>
+</vector>

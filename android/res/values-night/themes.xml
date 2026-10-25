@@ -5,8 +5,10 @@
         <item name="android:colorBackground">@color/paper</item>
         <item name="android:colorAccent">@color/lamp</item>
         <item name="android:colorControlActivated">@color/lamp</item>
+        <item name="android:colorControlNormal">@color/field_line</item>
         <item name="android:textColorPrimary">@color/ink</item>
         <item name="android:textColorSecondary">@color/ink2</item>
+        <item name="android:textColorHighlight">@color/lamp_soft</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>

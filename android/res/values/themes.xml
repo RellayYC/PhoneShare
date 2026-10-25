@@ -5,21 +5,33 @@
         <item name="android:colorBackground">@color/paper</item>
         <item name="android:colorAccent">@color/lamp</item>
         <item name="android:colorControlActivated">@color/lamp</item>
+        <item name="android:colorControlNormal">@color/field_line</item>
         <item name="android:textColorPrimary">@color/ink</item>
         <item name="android:textColorSecondary">@color/ink2</item>
+        <item name="android:textColorHighlight">@color/lamp_soft</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>
 
+    <!-- one block of the screen: status, how to connect, settings, viewers -->
+    <style name="Card">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">12dp</item>
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">18dp</item>
+    </style>
+
     <style name="Label">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textColor">@color/ink2</item>
-        <item name="android:layout_marginTop">28dp</item>
-        <item name="android:layout_marginBottom">10dp</item>
     </style>
 
     <style name="Hint">
@@ -33,7 +45,8 @@
     <style name="Divider">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>
-        <item name="android:layout_marginTop">28dp</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">18dp</item>
         <item name="android:background">@color/line</item>
     </style>
 
@@ -57,5 +70,23 @@
         <item name="android:textColor">@color/ink</item>
         <item name="android:minHeight">44dp</item>
         <item name="android:textSize">15sp</item>
+    </style>
+
+    <!-- a quality tile: the whole row is the radio button, the mark sits at the end -->
+    <style name="Option">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">14dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:background">@drawable/bg_option</item>
+        <item name="android:button">@null</item>
+        <item name="android:drawableEnd">@drawable/ic_option</item>
+        <item name="android:drawablePadding">12dp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:textSize">16sp</item>
     </style>
 </resources>

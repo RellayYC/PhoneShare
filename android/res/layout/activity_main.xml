@@ -10,43 +10,41 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="20dp"
-        android:paddingTop="16dp"
-        android:paddingEnd="20dp"
+        android:paddingStart="16dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="16dp"
         android:paddingBottom="28dp">
 
+        <!-- the same header as the PC page: the icon in the screen's colours and the name -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="4dp">
 
             <ImageView
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:importantForAccessibility="no"
-                android:src="@mipmap/ic_launcher" />
+                android:src="@drawable/ic_brand" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="10dp"
                 android:fontFamily="sans-serif-condensed"
                 android:text="@string/app_name"
                 android:textColor="@color/ink"
-                android:textSize="19sp"
+                android:textSize="21sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
         <!-- shown by MainActivity when GitHub has a signed newer APK -->
         <LinearLayout
             android:id="@+id/update"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:background="@drawable/bg_secondary"
-            android:orientation="vertical"
-            android:padding="14dp"
+            style="@style/Card"
+            android:background="@drawable/bg_card_live"
             android:visibility="gone">
 
             <TextView
@@ -61,201 +59,200 @@
                 style="@style/Button.Primary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="12dp"
                 android:text="@string/update" />
         </LinearLayout>
 
+        <!-- on air or not, and the one button that changes it; MainActivity tints the card while live -->
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:id="@+id/status_card"
+            style="@style/Card"
+            android:paddingTop="20dp">
 
-            <View
-                android:id="@+id/status_dot"
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_marginEnd="10dp"
-                android:background="@drawable/dot" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/status_dot"
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:background="@drawable/dot" />
+
+                <TextView
+                    android:id="@+id/status_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:accessibilityLiveRegion="polite"
+                    android:fontFamily="sans-serif-condensed"
+                    android:text="@string/status_off"
+                    android:textColor="@color/ink"
+                    android:textSize="27sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/status_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:accessibilityLiveRegion="polite"
-                android:fontFamily="sans-serif-condensed"
-                android:text="@string/status_off"
-                android:textColor="@color/ink"
-                android:textSize="30sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/status_text"
-            style="@style/Hint"
-            android:layout_marginTop="6dp"
-            android:text="@string/status_off_text"
-            android:textSize="15sp" />
-
-        <Button
-            android:id="@+id/toggle"
-            style="@style/Button.Primary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/start" />
-
-        <TextView
-            android:id="@+id/error"
-            style="@style/Hint"
-            android:layout_marginTop="10dp"
-            android:textColor="@color/danger"
-            android:visibility="gone" />
-
-        <View style="@style/Divider" />
-
-        <TextView
-            style="@style/Label"
-            android:text="@string/how_label" />
-
-        <TextView
-            android:id="@+id/url"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-condensed"
-            android:textColor="@color/ink"
-            android:textIsSelectable="true"
-            android:textSize="26sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/how_hint"
-            style="@style/Hint"
-            android:layout_marginTop="6dp"
-            android:text="@string/how_hint" />
-
-        <Button
-            android:id="@+id/copy"
-            style="@style/Button.Secondary"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="@string/copy" />
-
-        <View style="@style/Divider" />
-
-        <TextView
-            style="@style/Label"
-            android:text="@string/pin_label" />
-
-        <LinearLayout
-            android:id="@+id/pin_cells"
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:orientation="horizontal" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+                android:id="@+id/status_text"
+                style="@style/Hint"
+                android:layout_marginTop="6dp"
+                android:text="@string/status_off_text"
+                android:textSize="15sp" />
 
             <Button
-                android:id="@+id/new_pin"
+                android:id="@+id/toggle"
+                style="@style/Button.Primary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="@string/start" />
+
+            <TextView
+                android:id="@+id/error"
+                style="@style/Hint"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/danger"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- what the PC needs: the address and the PIN, laid out like the PC's PIN screen -->
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/Label"
+                android:text="@string/how_label" />
+
+            <TextView
+                android:id="@+id/url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-condensed"
+                android:textColor="@color/ink"
+                android:textIsSelectable="true"
+                android:textSize="25sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/how_hint"
+                style="@style/Hint"
+                android:layout_marginTop="6dp"
+                android:text="@string/how_hint" />
+
+            <Button
+                android:id="@+id/copy"
                 style="@style/Button.Secondary"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/new_pin" />
+                android:layout_marginTop="14dp"
+                android:text="@string/copy" />
+
+            <View style="@style/Divider" />
 
             <TextView
-                style="@style/Hint"
-                android:layout_width="0dp"
-                android:layout_marginStart="14dp"
-                android:layout_weight="1"
-                android:text="@string/pin_hint"
-                android:textSize="13sp" />
+                style="@style/Label"
+                android:text="@string/pin_label" />
+
+            <LinearLayout
+                android:id="@+id/pin_cells"
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:orientation="horizontal" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/new_pin"
+                    style="@style/Button.Secondary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/new_pin" />
+
+                <TextView
+                    style="@style/Hint"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:text="@string/pin_hint"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
 
-        <View style="@style/Divider" />
+        <LinearLayout style="@style/Card">
 
-        <TextView
-            style="@style/Label"
-            android:text="@string/quality_label" />
+            <TextView
+                style="@style/Label"
+                android:text="@string/quality_label" />
 
-        <RadioGroup
-            android:id="@+id/quality"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            <RadioGroup
+                android:id="@+id/quality"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-            <RadioButton
-                android:id="@+id/q0"
+                <RadioButton
+                    android:id="@+id/q0"
+                    style="@style/Option"
+                    android:text="@string/q_low" />
+
+                <RadioButton
+                    android:id="@+id/q1"
+                    style="@style/Option"
+                    android:text="@string/q_mid" />
+
+                <RadioButton
+                    android:id="@+id/q2"
+                    style="@style/Option"
+                    android:text="@string/q_high" />
+            </RadioGroup>
+
+            <TextView
+                android:id="@+id/quality_hint"
+                style="@style/Hint"
+                android:layout_marginTop="2dp"
+                android:text="@string/quality_hint" />
+
+            <View style="@style/Divider" />
+
+            <Switch
+                android:id="@+id/audio"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minHeight="48dp"
-                android:text="@string/q_low"
+                android:text="@string/audio"
                 android:textColor="@color/ink"
-                android:textSize="16sp" />
+                android:textSize="16sp"
+                android:thumbTint="@color/switch_thumb"
+                android:trackTint="@color/switch_track" />
 
-            <RadioButton
-                android:id="@+id/q1"
+            <TextView
+                android:id="@+id/audio_hint"
+                style="@style/Hint"
+                android:layout_marginTop="4dp"
+                android:text="@string/audio_hint" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/Card">
+
+            <TextView
+                style="@style/Label"
+                android:text="@string/viewers_label" />
+
+            <TextView
+                android:id="@+id/viewers"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:minHeight="48dp"
-                android:text="@string/q_mid"
+                android:accessibilityLiveRegion="polite"
+                android:lineSpacingExtra="6dp"
+                android:text="@string/viewers_none"
                 android:textColor="@color/ink"
                 android:textSize="16sp" />
-
-            <RadioButton
-                android:id="@+id/q2"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="48dp"
-                android:text="@string/q_high"
-                android:textColor="@color/ink"
-                android:textSize="16sp" />
-        </RadioGroup>
-
-        <TextView
-            android:id="@+id/quality_hint"
-            style="@style/Hint"
-            android:layout_marginTop="6dp"
-            android:text="@string/quality_hint" />
-
-        <View style="@style/Divider" />
-
-        <Switch
-            android:id="@+id/audio"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:minHeight="48dp"
-            android:text="@string/audio"
-            android:textColor="@color/ink"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/audio_hint"
-            style="@style/Hint"
-            android:layout_marginTop="4dp"
-            android:text="@string/audio_hint" />
-
-        <View style="@style/Divider" />
-
-        <TextView
-            style="@style/Label"
-            android:text="@string/viewers_label" />
-
-        <TextView
-            android:id="@+id/viewers"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:accessibilityLiveRegion="polite"
-            android:lineSpacingExtra="6dp"
-            android:text="@string/viewers_none"
-            android:textColor="@color/ink"
-            android:textSize="16sp" />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

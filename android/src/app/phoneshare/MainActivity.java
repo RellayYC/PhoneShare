@@ -44,7 +44,7 @@ public final class MainActivity extends Activity {
     private static long checkedAt = -UPDATE_EVERY;   // per process: reopening the app does not ask GitHub again
 
     private TextView statusTitle, statusText, error, url, howHint, viewers, qualityHint, audioHint;
-    private View statusDot;
+    private View statusDot, statusCard;
     private Button toggle, copy, updateGo;
     private View update;
     private TextView updateText;
@@ -59,6 +59,7 @@ public final class MainActivity extends Activity {
         statusTitle = findViewById(R.id.status_title);
         statusText = findViewById(R.id.status_text);
         statusDot = findViewById(R.id.status_dot);
+        statusCard = findViewById(R.id.status_card);
         error = findViewById(R.id.error);
         url = findViewById(R.id.url);
         howHint = findViewById(R.id.how_hint);
@@ -271,6 +272,7 @@ public final class MainActivity extends Activity {
 
         statusTitle.setText(on ? R.string.status_on : R.string.status_off);
         statusDot.setBackgroundResource(on ? R.drawable.dot_live : R.drawable.dot);
+        statusCard.setBackgroundResource(on ? R.drawable.bg_card_live : R.drawable.bg_card);   // the card lights up like the lamp
         toggle.setText(on ? R.string.stop : R.string.start);
         toggle.setBackgroundResource(on ? R.drawable.bg_secondary : R.drawable.bg_primary);
         toggle.setTextColor(getColor(on ? R.color.ink : R.color.on_lamp));
