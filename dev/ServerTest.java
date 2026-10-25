@@ -134,7 +134,7 @@ public final class ServerTest {
         // control: forwarded only while the phone allows it, and only from a viewer that entered the PIN
         java.util.List<String> commands = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         srv.onControl = commands::add;
-        check(hello.contains("\"control\":false"), "hello says whether the phone takes control");
+        check(hello.contains("\"control\":false") && hello.contains("\"touch\":true"), "hello says whether the phone takes control, and that it takes live presses");
         pre.sendText("{\"t\":\"nav\",\"a\":\"back\"}");
         Thread.sleep(200);
         check(commands.isEmpty(), "control off: commands are ignored");
@@ -142,17 +142,30 @@ public final class ServerTest {
         check(readText(pre, "\"t\":\"control\"").text().contains("\"on\":true"), "control on sent live");
         pre.sendText("{\"t\":\"gesture\",\"p\":\"0.5,0.5,0\"}");
         pre.sendText("{\"t\":\"text\",\"s\":\"привет\"}");
+        pre.sendText("{\"t\":\"touch\",\"a\":\"down\",\"p\":\"0.25,0.75,0\"}");
         long until = System.currentTimeMillis() + 2000;
-        while (commands.size() < 2 && System.currentTimeMillis() < until) Thread.sleep(20);
-        check(commands.size() == 2 && commands.get(0).contains("0.5,0.5,0") && commands.get(1).contains("привет"), "control on: commands reach the phone: " + commands);
+        while (commands.size() < 3 && System.currentTimeMillis() < until) Thread.sleep(20);
+        check(commands.size() == 3 && commands.get(0).contains("0.5,0.5,0") && commands.get(1).contains("привет") && commands.get(2).contains("\"down\""),
+                "control on: commands reach the phone, live presses too: " + commands);
         Ws stranger = new Ws(port, 0);
         stranger.sendText("{\"t\":\"nav\",\"a\":\"home\"}");
         Thread.sleep(300);
-        check(commands.size() == 2, "a viewer without the PIN cannot control");
+        check(commands.size() == 3, "a viewer without the PIN cannot control");
+        Ws presser = new Ws(port, 0);
+        presser.sendText("{\"t\":\"auth\",\"pin\":\"" + PIN + "\",\"name\":\"Presser\"}");
+        presser.sendText("{\"t\":\"touch\",\"a\":\"down\",\"p\":\"0.5,0.5,0\"}");
+        until = System.currentTimeMillis() + 2000;
+        while (commands.size() < 4 && System.currentTimeMillis() < until) Thread.sleep(20);
+        presser.s.close();
+        while (commands.size() < 5 && System.currentTimeMillis() < until + 2000) Thread.sleep(20);
+        check(commands.size() == 5 && commands.get(4).contains("\"up\""), "a viewer gone mid-press: the phone lifts its finger: " + commands.subList(3, commands.size()));
         srv.setControl(false);
         check(readText(pre, "\"t\":\"control\"").text().contains("\"on\":false"), "control off sent live");
-        check(StreamServer.gain(0) == 1 && Math.abs(StreamServer.gain(-20) - 0.1f) < 1e-4 && StreamServer.gain(Float.NEGATIVE_INFINITY) == 0,
-                "volume steps in dB become gain: 0 dB = 1, -20 dB = 0.1, muted = 0");
+        check(StreamServer.stepGain(15, 15) == 1 && StreamServer.stepGain(0, 15) == 0 && Math.abs(StreamServer.stepGain(15, 30) - 0.1f) < 1e-4,
+                "volume steps become gain: the top step = 1, step 0 = silence, halfway = -20 dB");
+        float first = StreamServer.stepGain(1, 15), second = StreamServer.stepGain(2, 15);
+        check(first < 0.02f && second / first > 1.3f && second / first < 1.4f,
+                "one press of + from silence is quiet on the PC (" + first + "), and every press adds the same 2.7 dB");
 
         // A viewer that stops reading is reset to the next keyframe instead of piling up latency
         Ws slow = new Ws(port, 4096);

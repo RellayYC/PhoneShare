@@ -62,18 +62,28 @@ public final class ControlService extends AccessibilityService {
         return false;
     }
 
-    /** One message from a viewer: {"t":"gesture","p":...}, {"t":"nav","a":...} or {"t":"text","s"|"k":...}. */
+    /** One message from a viewer: {"t":"touch","a":...,"p":...}, {"t":"gesture","p":...}, {"t":"nav","a":...} or {"t":"text",...}. */
     void perform(String msg) {
         String t = StreamServer.field(msg, "t");
-        if ("gesture".equals(t)) gesture(StreamServer.field(msg, "p"));
-        else if ("nav".equals(t)) nav(StreamServer.field(msg, "a"));
-        else if ("text".equals(t)) text(StreamServer.field(msg, "s"), StreamServer.field(msg, "k"));
+        try {
+            if ("touch".equals(t)) touch(StreamServer.field(msg, "a"), StreamServer.field(msg, "p"));
+            else if ("gesture".equals(t)) gesture(StreamServer.field(msg, "p"));
+            else if ("nav".equals(t)) nav(StreamServer.field(msg, "a"));
+            else if ("text".equals(t)) text(StreamServer.field(msg, "s"), StreamServer.field(msg, "k"));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            finger = null;   // a message Android cannot perform is dropped: it never takes the phone app down
+        }
     }
 
     // ---- touch: points are fractions of the picture, which is the whole screen as it is turned now
 
     /** "x,y,ms;x,y,ms;..." from the press to the release. */
     static List<float[]> points(String p) {
+        return points(p, MAX_MS);
+    }
+
+    /** The same with times up to maxMs: a live press may be held for longer than a whole gesture may last. */
+    static List<float[]> points(String p, float maxMs) {
         List<float[]> out = new ArrayList<>();
         if (p == null) return out;
         float last = 0;
@@ -82,8 +92,9 @@ public final class ControlService extends AccessibilityService {
             String[] v = part.split(",");
             if (v.length != 3) continue;
             try {
-                float x = clamp(Float.parseFloat(v[0])), y = clamp(Float.parseFloat(v[1]));
-                float ms = Math.max(last, Math.min(MAX_MS, Float.parseFloat(v[2])));
+                float x = clamp(Float.parseFloat(v[0])), y = clamp(Float.parseFloat(v[1])), raw = Float.parseFloat(v[2]);
+                if (Float.isNaN(raw)) continue;
+                float ms = Math.max(last, Math.min(maxMs, raw));
                 out.add(new float[] {x, y, ms});
                 last = ms;
             } catch (NumberFormatException ignored) {
@@ -130,6 +141,60 @@ public final class ControlService extends AccessibilityService {
         // held, then moved (an icon to another place): the finger stays down between the two parts
         GestureDescription.StrokeDescription down = new GestureDescription.StrokeDescription(press, 0, (long) hold, true);
         dispatch(down, () -> dispatch(down.continueStroke(drag, 0, dragMs, false), null));
+    }
+
+    // ---- live touch: the finger goes down when the mouse button does and follows the mouse until it is released
+
+    private static final long PIECE_MAX_MS = 50;   // a pause before a move is not replayed: the finger already waited
+    private GestureDescription.StrokeDescription finger;   // the press that is down, continued piece by piece
+    private float fx, fy, fms;
+
+    /**
+     * {"t":"touch","a":"down|move|up","p":"x,y,ms;..."}. Each point is one straight piece that continues the press. Points
+     * are whole pixels: a piece must start exactly where the last one ended, or Android lifts the finger in between.
+     */
+    private void touch(String a, String p) {
+        List<float[]> pts = points(p, 3_600_000);
+        int[] d = ScreenEncoder.displaySize(this);
+        if ("down".equals(a)) {
+            if (pts.isEmpty()) return;
+            fx = Math.round(pts.get(0)[0] * (d[0] - 1));
+            fy = Math.round(pts.get(0)[1] * (d[1] - 1));
+            fms = pts.get(0)[2];
+            Path at = new Path();
+            at.moveTo(fx, fy);
+            finger = new GestureDescription.StrokeDescription(at, 0, 1, true);   // a new press: anything still held is lifted
+            dispatch(finger, null);
+            return;
+        }
+        if (finger == null) return;
+        boolean up = "up".equals(a);
+        for (int i = 0; i < pts.size(); i++) {
+            float[] q = pts.get(i);
+            float x = Math.round(q[0] * (d[0] - 1)), y = Math.round(q[1] * (d[1] - 1));
+            boolean last = up && i == pts.size() - 1;
+            if (x == fx && y == fy && !last) continue;   // nothing to move: the finger just stays down
+            Path piece = new Path();
+            piece.moveTo(fx, fy);
+            if (x != fx || y != fy) piece.lineTo(x, y);
+            long ms = Math.max(1, Math.min(PIECE_MAX_MS, (long) (q[2] - fms)));
+            finger = finger.continueStroke(piece, 0, ms, !last);
+            dispatch(finger, null);
+            fx = x;
+            fy = y;
+            fms = q[2];
+        }
+        if (up && pts.isEmpty()) {   // released where it was
+            Path at = new Path();
+            at.moveTo(fx, fy);
+            dispatch(finger.continueStroke(at, 0, 1, false), null);
+        }
+        if (up) finger = null;
+    }
+
+    /** Control was switched off or the stream stopped mid-press: the finger comes up where it is. */
+    void lift() {
+        if (finger != null) touch("up", "");
     }
 
     private void dispatch(GestureDescription.StrokeDescription s, Runnable then) {

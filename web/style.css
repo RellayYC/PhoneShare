@@ -334,12 +334,15 @@ body.checking #update-check .icon { animation: spin 900ms linear infinite; }
 }
 .stage {
   position: absolute; inset: 0;
-  transition-property: top, bottom;
+  transition-property: top, right, bottom;
   transition-duration: 240ms;
   transition-timing-function: var(--ease);
 }
 /* control: the picture steps out from under the controls (JS measures them), so all of the phone's screen is reachable */
-.player.controlling .stage { top: var(--reserve-top, 72px); bottom: var(--reserve-bottom, 76px); touch-action: none; user-select: none; -webkit-user-select: none; }
+.player.controlling .stage {
+  top: var(--reserve-top, 72px); right: var(--reserve-right, 0px); bottom: var(--reserve-bottom, 0px);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
 /* the picture coming on (reveal in app.js): a hot line across its middle, then an amber glow round its edge */
 .boot { position: absolute; pointer-events: none; }
 .boot-glow {
@@ -376,15 +379,16 @@ body.checking #update-check .icon { animation: spin 900ms linear infinite; }
 }
 .hud > * { pointer-events: auto; }
 .hud-top { top: 12px; justify-content: space-between; }
-.hud-bottom { bottom: 14px; justify-content: center; flex-wrap: wrap; }
+/* the dock: a column beside the picture (a phone stands upright in a wide window); narrow screens put it under (below) */
+.hud-dock { left: auto; top: 72px; bottom: 12px; flex-direction: column; justify-content: center; }
 body.idle .hud { opacity: 0; pointer-events: none; }
 body.idle .hud > * { pointer-events: none; }
 body.idle .hud-top { translate: 0 -6px; }
-body.idle .hud-bottom { translate: 0 6px; }
+body.idle .hud-dock { translate: 6px 0; }
 body.idle .player { cursor: none; }
 
 /* glass plates: 16 = 12 inner control + 4 padding */
-.player-title, #player-back, .stats, .hud-bottom > .seg, .hud-bottom > .ctl, .hud-bottom > .tools {
+.player-title, #player-back, .stats, .hud-dock > *, .seg, .vol-pop {
   background: var(--hud); box-shadow: var(--hud-edge), 0 8px 24px rgb(0 0 0 / 0.35);
   -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -405,12 +409,29 @@ body.idle .player { cursor: none; }
 .stats dd { margin: 0; font: 600 15px/1.25 var(--font-din); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats dd.warn { color: #FFB61A; }
 
-.hud-bottom > .seg, .hud-bottom > .ctl, .hud-bottom > .tools { border-radius: 16px; padding: 4px; }
-.seg { position: relative; display: flex; gap: 2px; }
+.hud-dock > * { display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: 16px; padding: 4px; }
+.hud-dock > [hidden] { display: none; }
+.hud-dock .icon-btn { width: 40px; height: 40px; }
+.hud-dock .icon-btn:hover { background: var(--hud-hover); }
+.hud-dock .icon-btn::after { content: ""; position: absolute; inset: -2px; }
+
+/* flyouts to the left of the dock: the scales (a click on its button) and the volume (hover or focus on the speaker) */
+.scale, .volume { position: relative; }
+.seg, .vol-pop {
+  position: absolute; right: calc(100% + 12px); top: 50%; translate: 6px -50%; z-index: 1;
+  width: max-content; border-radius: 16px; opacity: 0; visibility: hidden;
+  transition-property: opacity, translate, visibility;
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease);
+}
+.scale.open .seg, .volume:hover .vol-pop, .volume:focus-within .vol-pop { opacity: 1; visibility: visible; translate: 0 -50%; }
+.vol-pop::after { content: ""; position: absolute; left: 100%; top: 0; bottom: 0; width: 14px; }   /* the mouse crosses the gap without closing it */
+#scale[aria-expanded="true"] { background: var(--hud-hover); color: #fff; }
+.seg { display: flex; flex-direction: column; gap: 2px; padding: 4px; }
 .seg-pill {   /* one light pill under the chosen scale; slides between choices */
-  position: absolute; top: 4px; bottom: 4px; left: 0; width: var(--w, 0); translate: var(--x, 0) 0;
+  position: absolute; top: 0; left: 0; width: var(--w, 0); height: var(--h, 0); translate: var(--x, 0) var(--y, 0);
   border-radius: 12px; background: #EDEFF3; opacity: 0;
-  transition-property: translate, width, opacity;
+  transition-property: translate, width, height, opacity;
   transition-duration: 240ms;
   transition-timing-function: var(--ease);
 }
@@ -425,24 +446,18 @@ body.idle .player { cursor: none; }
 .seg button { position: relative; z-index: 1; }
 .seg button[aria-checked="true"] { color: #141821; background: transparent; }
 .seg:not(:has(.seg-pill.placed)) button[aria-checked="true"] { background: #EDEFF3; }   /* before the pill is placed */
-.tools { display: flex; align-items: center; gap: 2px; }
-.tools .icon-btn { width: 40px; height: 40px; }
-.tools .icon-btn:hover { background: var(--hud-hover); }
-.tools .icon-btn::after { content: ""; position: absolute; inset: -2px; }
 .tools [hidden] { display: none; }
 .rec-time { display: none; font: 600 15px/1 var(--font-din); font-variant-numeric: tabular-nums; color: #EDEFF3; }
-.tools .rec-btn.on { display: inline-flex; gap: 6px; width: auto; padding: 0 12px 0 9px; color: #FF5F52; background: rgb(255 95 82 / 0.14); }
-.rec-btn.on .rec-time { display: inline; }
+.tools .rec-btn.on { color: #FF5F52; background: rgb(255 95 82 / 0.14); }
+.rec-btn.on .rec-time {   /* the take's length, beside the dock */
+  display: block; position: absolute; right: calc(100% + 12px); padding: 7px 10px; border-radius: 10px;
+  background: #FF5F52; color: #141821; box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
 .rec-btn.on .fill-on { fill: currentColor; }
 #ontop[aria-pressed="true"] { color: #FFB61A; }
 #ontop[aria-pressed="true"] .fill-on { fill: currentColor; }
-.ctl { display: flex; align-items: center; gap: 2px; }
-.ctl[hidden] { display: none; }
-.ctl .icon-btn { width: 40px; height: 40px; }
-.ctl .icon-btn:hover { background: var(--hud-hover); }
-.ctl .icon-btn::after { content: ""; position: absolute; inset: -2px; }
 .ctl-toggle {   /* lit while clicks and keys go to the phone */
-  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin-left: 2px; padding: 0 14px 0 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 40px; min-height: 40px; margin-top: 2px; padding: 0;
   border: 0; border-radius: 12px; background: transparent; color: #C9CFDA; font-weight: 600;
   transition-property: background-color, color, scale;
   transition-duration: 150ms;
@@ -453,9 +468,12 @@ body.idle .player { cursor: none; }
 .ctl-toggle:active { scale: 0.96; }
 .ctl-toggle[aria-pressed="true"] { color: #141821; background: #FFB61A; }
 .ctl-toggle[aria-pressed="true"]:hover { background: #F0A500; }
-.volume { display: flex; align-items: center; transition-property: opacity; transition-duration: 200ms; }
-.player.silent .volume { opacity: 0.4; }   /* the phone's sound is off: still usable, visibly idle */
-.volume input { width: 92px; margin: 0 8px 0 2px; accent-color: #EDEFF3; }
+.ctl-toggle span { display: none; }   /* the dock is icons; the name is in the label and the tooltip */
+.volume { display: flex; align-items: center; }
+.volume > .icon-btn { transition-property: background-color, color, scale, opacity; }
+.player.silent .volume > .icon-btn { opacity: 0.4; }   /* the phone's sound is off: still usable, visibly idle */
+.vol-pop { display: flex; align-items: center; height: 48px; padding: 0 14px; }
+.vol-pop input { width: 128px; margin: 0; accent-color: #EDEFF3; }
 
 .swap { position: absolute; transition-property: opacity, scale, filter; transition-duration: 200ms; transition-timing-function: var(--ease); }
 .swap.off { opacity: 0; scale: 0.25; filter: blur(4px); }
@@ -486,7 +504,7 @@ body.idle .player { cursor: none; }
 .player .secondary:hover { background: #313744; }
 
 .toast {
-  position: absolute; left: 50%; bottom: 88px; translate: -50% 8px;
+  position: absolute; left: 50%; bottom: 24px; translate: -50% 8px;
   padding: 10px 16px; border-radius: 12px; background: #EDEFF3; color: #141821; font-weight: 600;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
   opacity: 0; pointer-events: none;
@@ -529,13 +547,30 @@ body[data-screen="player"] #player { animation: fade 200ms var(--ease) both; }
 .steps:not([hidden]) { animation: rise 260ms var(--ease); }
 .update-status.fresh { animation: fade 200ms var(--ease); }
 
+/* a narrow or a low window: the controls go under the picture, in a row, with the scales out in the open */
+@media (max-width: 560px), (max-height: 520px) {
+  .hud-dock { left: 12px; right: 12px; top: auto; bottom: 14px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  body.idle .hud-dock { translate: 0 6px; }
+  .hud-dock > * { flex-direction: row; }
+  .hud-dock > .scale { padding: 0; }
+  #scale { display: none; }
+  .seg, .vol-pop {
+    position: static; translate: none; opacity: 1; visibility: visible;
+    background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .seg { flex-direction: row; }
+  .vol-pop { height: auto; padding: 0 8px 0 2px; }
+  .vol-pop input { width: 92px; }
+  .ctl-toggle { margin: 0 0 0 2px; }
+  .tools .rec-btn.on { display: inline-flex; gap: 6px; width: auto; padding: 0 12px 0 9px; }
+  .rec-btn.on .rec-time { display: inline; position: static; padding: 0; background: none; color: inherit; box-shadow: none; }
+  .toast { bottom: 88px; }
+}
 @media (max-width: 560px) {
   .stats div { padding: 3px 6px; }
   .stats dt { display: none; }
-  .volume input { display: none; }
+  .vol-pop { display: none; }
   .seg button { padding: 0 10px; }
-  .ctl-toggle { padding: 0 10px; }
-  .ctl-toggle span { display: none; }
   .player-title { font-size: 15px; }
 }
 @media (max-width: 380px) {

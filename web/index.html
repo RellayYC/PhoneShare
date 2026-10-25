@@ -23,6 +23,7 @@
     <symbol id="i-top" viewBox="0 0 24 24"><rect x="3.5" y="9" width="11" height="10.5" rx="1.5"/><rect x="9.5" y="4.5" width="11" height="10.5" rx="1.5" class="fill-on"/></symbol>
     <symbol id="i-full" viewBox="0 0 24 24"><path d="M4.5 9V4.5H9M15 4.5h4.5V9M19.5 15v4.5H15M9 19.5H4.5V15"/></symbol>
     <symbol id="i-unfull" viewBox="0 0 24 24"><path d="M9 4.5V9H4.5M19.5 9H15V4.5M15 19.5V15h4.5M4.5 15H9v4.5"/></symbol>
+    <symbol id="i-scale" viewBox="0 0 24 24"><rect x="3.75" y="5.25" width="16.5" height="13.5" rx="2.25"/><path d="M7.5 11V8.75h2.25M16.5 13v2.25h-2.25"/></symbol>
     <symbol id="i-control" viewBox="0 0 24 24"><path d="M6.5 4.5 18 10.75l-5.25 1.5-2.5 5.25z"/><path d="m12.75 12.25 4.5 4.5"/></symbol>
     <symbol id="i-nav-back" viewBox="0 0 24 24"><path d="M16 6v12L7 12z"/></symbol>
     <symbol id="i-nav-home" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.25"/></symbol>
@@ -130,13 +131,17 @@
     </dl>
   </div>
 
-  <div class="hud hud-bottom">
-    <div class="seg" role="radiogroup" aria-label="Масштаб">
-      <span class="seg-pill" aria-hidden="true"></span>
-      <button type="button" role="radio" data-fit="contain" aria-checked="true">Вписать</button>
-      <button type="button" role="radio" data-fit="cover" aria-checked="false">Заполнить</button>
-      <button type="button" role="radio" data-fit="fill" aria-checked="false">Растянуть</button>
-      <button type="button" role="radio" data-fit="native" aria-checked="false" title="Пиксель в пиксель">1:1</button>
+  <!-- beside the picture on a PC screen, under it on a narrow one (style.css); scale and volume open out to the side -->
+  <div class="hud hud-dock">
+    <div class="scale">
+      <button id="scale" class="icon-btn" type="button" aria-expanded="false" aria-controls="seg" aria-label="Масштаб" title="Масштаб"><svg class="icon"><use href="#i-scale"/></svg></button>
+      <div id="seg" class="seg" role="radiogroup" aria-label="Масштаб">
+        <span class="seg-pill" aria-hidden="true"></span>
+        <button type="button" role="radio" data-fit="contain" aria-checked="true">Вписать</button>
+        <button type="button" role="radio" data-fit="cover" aria-checked="false">Заполнить</button>
+        <button type="button" role="radio" data-fit="fill" aria-checked="false">Растянуть</button>
+        <button type="button" role="radio" data-fit="native" aria-checked="false" title="Пиксель в пиксель">1:1</button>
+      </div>
     </div>
     <!-- shown when the phone's owner allows control: its system buttons and the mode that sends clicks and keys -->
     <div id="ctl" class="ctl" role="group" aria-label="Управление телефоном" hidden>
@@ -151,7 +156,7 @@
         <button id="mute" class="icon-btn" type="button" aria-label="Выключить звук" title="Звук (M)">
           <svg class="icon swap on"><use href="#i-sound"/></svg><svg class="icon swap off"><use href="#i-muted"/></svg>
         </button>
-        <input id="volume" type="range" min="0" max="100" value="80" aria-label="Громкость">
+        <span class="vol-pop"><input id="volume" type="range" min="0" max="100" value="80" aria-label="Громкость"></span>
       </div>
       <button id="shot" class="icon-btn" type="button" aria-label="Сохранить скриншот" title="Скриншот (S)"><svg class="icon"><use href="#i-shot"/></svg></button>
       <button id="rec" class="icon-btn rec-btn" type="button" aria-pressed="false" aria-label="Начать запись" title="Запись (R)" hidden><svg class="icon"><use href="#i-rec"/></svg><span id="rec-time" class="rec-time">0:00</span></button>

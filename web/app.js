@@ -444,6 +444,7 @@ class Session {
         if (m.audio) audio.format(m.audio.rate, m.audio.ch);
         updateUnmuteChip();
         this.control = !!m.control;
+        this.touch = !!m.touch;   // the phone takes live presses (1.4); older phones get the whole gesture on release
         renderControl(false);
         break;
       case 'control':   // the phone's owner switched «Управление с ПК» mid-stream
@@ -857,6 +858,9 @@ class MsePlayer {
 
 // ---------------------------------------------------------------- audio
 
+/** The volume slider is even to the ear: its travel is 48 dB, not raw gain (half way was nearly as loud as the top). */
+const loudness = (v) => (v > 0 ? 10 ** (-48 * (1 - Math.min(1, v)) / 20) : 0);
+
 const audio = {
   ctx: null, bus: null, gain: null, next: 0, target: 0.06, lastAdjust: 0, rate: 48000, ch: 2,
   volume: store.get('volume', 0.8), muted: store.get('muted', false), phone: 1,
@@ -884,7 +888,7 @@ const audio = {
 
   /** What you hear: this PC's volume times the phone's own (its volume keys), or nothing when muted here. */
   apply() {
-    const g = this.muted ? 0 : this.volume * this.phone;
+    const g = this.muted ? 0 : loudness(this.volume) * this.phone;
     stats.gain = g;
     if (this.gain) this.gain.gain.setTargetAtTime(g, this.ctx.currentTime, 0.04);   // glide: no click on a jump
   },
@@ -946,6 +950,7 @@ function applyNative() {
   const r = window.devicePixelRatio || 1;
   $('player').style.setProperty('--native-w', `${stats.width / r}px`);
   $('player').style.setProperty('--native-h', `${stats.height / r}px`);
+  reserveHud();   // the picture's shape or scale changed: what it would reach under, too
 }
 window.addEventListener('resize', () => { applyNative(); placePill(false); });   // also fires on a move to a screen with another scale
 
@@ -957,17 +962,31 @@ function applyFit(fit) {
   store.set('fit', fit);
 }
 
-/** The light pill under the chosen scale slides to the new choice. */
+/** The light pill under the chosen scale slides to the new choice (down the flyout, or along the row on a narrow screen). */
 function placePill(slide) {
   const b = document.querySelector('.seg button[aria-checked="true"]');
   const pill = document.querySelector('.seg-pill');
   if (!b || !b.offsetWidth) return;   // the player is hidden: placed when it shows
   pill.classList.toggle('instant', !slide || !pill.classList.contains('placed'));
   pill.style.setProperty('--x', `${b.offsetLeft}px`);
+  pill.style.setProperty('--y', `${b.offsetTop}px`);
   pill.style.setProperty('--w', `${b.offsetWidth}px`);
+  pill.style.setProperty('--h', `${b.offsetHeight}px`);
   pill.classList.add('placed');
 }
-document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => applyFit(b.dataset.fit)));
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+  applyFit(b.dataset.fit);
+  setTimeout(() => openScale(false), 160);   // the pill gets there first, then the flyout closes
+}));
+
+/** The scales open out beside the dock; a click elsewhere or Esc closes them. */
+function openScale(open) {
+  document.querySelector('.scale').classList.toggle('open', open);
+  $('scale').setAttribute('aria-expanded', String(open));
+  if (open) placePill(false);
+}
+$('scale').addEventListener('click', () => openScale($('scale').getAttribute('aria-expanded') !== 'true'));
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.scale')) openScale(false); });
 
 function renderVolume() {
   $('volume').value = Math.round(audio.volume * 100);
@@ -1121,8 +1140,9 @@ $('player-back').addEventListener('click', goHome);
 // ---------------------------------------------------------------- control of the phone
 
 // Off: the picture is only watched. On («Управлять»): a click is a tap, a drag a swipe, the wheel scrolls, the right
-// button is «Назад», the middle one «Домой», and keys type into the phone's focused field. A gesture goes out when the
-// button is released, with the timing it was drawn with; the phone replays it (an accessibility service there).
+// button is «Назад», the middle one «Домой», and keys type into the phone's focused field. A press is live: the finger
+// goes down on the phone with the mouse button and follows the mouse until it is released (an accessibility service
+// there). Phones before 1.4 get the whole gesture on release instead, with the timing it was drawn with.
 const ctl = { on: false, pts: null, t0: 0, id: 0, wheelAt: 0 };
 const MAX_POINTS = 400;
 stats.control = false;
@@ -1139,6 +1159,7 @@ function renderControl(announce) {
 
 function setControlling(on) {
   if (on === ctl.on) return;
+  if (ctl.pts && ctl.live && session) session.command({ t: 'touch', a: 'up', p: '' });   // mid-press: let go on the phone
   ctl.on = on;
   ctl.pts = null;
   stats.controlling = on;
@@ -1157,16 +1178,29 @@ $('control').addEventListener('click', () => {
 });
 document.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => session && session.command({ t: 'nav', a: b.dataset.nav })));
 
-/** While controlling, the picture sits between the two control bars: their measured heights, wrapped rows included. */
+/**
+ * While controlling, no part of the picture may sit under the controls: the stage steps back from the dock (beside it,
+ * or under it on a narrow screen) and from the top bar, but from the top bar only if the picture would reach under its
+ * plates (a phone standing upright in a wide window does not, and keeps its full height).
+ */
 function reserveHud() {
   const p = $('player');
+  const W = p.clientWidth;
+  const H = p.clientHeight;
+  const dock = document.querySelector('.hud-dock');
   const top = document.querySelector('.hud-top');
-  const bottom = document.querySelector('.hud-bottom');
-  p.style.setProperty('--reserve-top', `${top.offsetTop + top.offsetHeight + 8}px`);
-  p.style.setProperty('--reserve-bottom', `${p.clientHeight - bottom.offsetTop + 8}px`);
+  const side = getComputedStyle(dock).flexDirection === 'column';
+  const right = side ? W - dock.offsetLeft + 8 : 0;
+  const bottom = side ? 0 : H - dock.offsetTop + 8;
+  const bar = top.offsetTop + top.offsetHeight + 8;
+  const b = fitBox(W - right, H - bottom);   // the picture with the whole height
+  const under = b.y < bar && [...top.children].some((e) => e.offsetWidth && e.offsetLeft < b.x + b.w && e.offsetLeft + e.offsetWidth > b.x);
+  p.style.setProperty('--reserve-top', `${under ? bar : 0}px`);
+  p.style.setProperty('--reserve-right', `${right}px`);
+  p.style.setProperty('--reserve-bottom', `${bottom}px`);
 }
 window.addEventListener('resize', reserveHud);
-new ResizeObserver(reserveHud).observe(document.querySelector('.hud-bottom'));
+new ResizeObserver(reserveHud).observe(document.querySelector('.hud-dock'));
 
 /** Where a point of the window falls on the phone's screen, as fractions of it; null on the bars around the picture. */
 function phonePoint(e, clamp) {
@@ -1205,7 +1239,8 @@ $('stage').addEventListener('pointerdown', (e) => {
   if (!p) return;   // the bars around the picture are not the phone
   e.preventDefault();
   $('stage').setPointerCapture(e.pointerId);
-  Object.assign(ctl, { pts: [[p[0], p[1], 0]], t0: e.timeStamp, id: e.pointerId });
+  Object.assign(ctl, { pts: [[p[0], p[1], 0]], t0: e.timeStamp, id: e.pointerId, live: !!session.touch });
+  if (ctl.live) session.command({ t: 'touch', a: 'down', p: pointText(ctl.pts) });   // the finger goes down now
   touchMark(e);
 });
 
@@ -1214,7 +1249,13 @@ $('stage').addEventListener('pointermove', (e) => {
   const ms = e.timeStamp - ctl.t0;
   if (ms - ctl.pts[ctl.pts.length - 1][2] < 8) return;   // about one point a frame is plenty
   const [x, y] = phonePoint(e, true);
-  ctl.pts.push([x, y, ms]);
+  const pt = [x, y, ms];
+  if (ctl.live) {   // the finger follows at once; only the last point is kept, to go on from
+    session.command({ t: 'touch', a: 'move', p: pointText([pt]) });
+    ctl.pts = [pt];
+    return;
+  }
+  ctl.pts.push(pt);
   if (ctl.pts.length >= MAX_POINTS) ctl.pts = ctl.pts.filter((_, i) => i % 2 === 0);   // a very long drag: half as dense
 });
 
@@ -1222,10 +1263,10 @@ function release(e) {
   if (!ctl.pts || e.pointerId !== ctl.id) return;
   const pts = ctl.pts;
   ctl.pts = null;
-  if (e.type === 'pointercancel') return;
-  const p = phonePoint(e, true);
-  if (p) pts.push([p[0], p[1], Math.max(e.timeStamp - ctl.t0, pts[pts.length - 1][2])]);
-  session.command({ t: 'gesture', p: pointText(pts) });
+  const p = e.type === 'pointercancel' ? null : phonePoint(e, true);
+  const end = p ? [[p[0], p[1], Math.max(e.timeStamp - ctl.t0, pts[pts.length - 1][2])]] : [];
+  if (ctl.live) session.command({ t: 'touch', a: 'up', p: pointText(end) });   // cancelled too: never leave the finger down
+  else if (p) session.command({ t: 'gesture', p: pointText([...pts, ...end]) });
 }
 $('stage').addEventListener('pointerup', release);
 $('stage').addEventListener('pointercancel', release);
@@ -1279,6 +1320,7 @@ document.addEventListener('paste', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (stats.screen !== 'player') return;
+  if (e.key === 'Escape' && document.querySelector('.scale.open')) { openScale(false); return; }
   if (typeKey(e)) return;   // controlling: letters are typing, not shortcuts (AltGr letters too, so before the Ctrl check)
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   const t = e.target;
@@ -1298,6 +1340,7 @@ function poke() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(function hide() {
     if (stats.screen !== 'player' || !$('overlay').hidden || ctl.on) return;   // controlling: the buttons stay at hand
+    if (document.querySelector('.scale.open')) { idleTimer = setTimeout(hide, 1000); return; }
     if (document.querySelector('.hud:hover') || document.querySelector('.hud :focus-visible')) { idleTimer = setTimeout(hide, 1000); return; }
     document.body.classList.add('idle');
   }, 2500);

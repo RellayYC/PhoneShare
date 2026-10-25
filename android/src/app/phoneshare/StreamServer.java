@@ -69,7 +69,7 @@ public final class StreamServer {
     public volatile Runnable onKeyframeNeeded;
     /** Called when the list of authenticated viewers changes. */
     public volatile Runnable onViewersChanged;
-    /** Gets "gesture", "text" and "nav" messages from viewers that entered the PIN; the phone performs them. */
+    /** Gets "touch", "gesture", "text" and "nav" messages from viewers that entered the PIN; the phone performs them. */
     public volatile java.util.function.Consumer<String> onControl;
 
     private final CopyOnWriteArrayList<Client> clients = new CopyOnWriteArrayList<>();
@@ -164,9 +164,16 @@ public final class StreamServer {
         return String.format(Locale.ROOT, "%.3f", v);
     }
 
-    /** Linear gain for a volume step in decibels (negative infinity, i.e. step 0, is silence). */
-    public static float gain(float db) {
-        return db <= -96 || Float.isNaN(db) ? 0 : (float) Math.min(1, Math.pow(10, db / 20));
+    /** How much quieter the lowest volume step is than the top one, in decibels. */
+    static final float STEP_RANGE_DB = 40;
+
+    /**
+     * A volume step as gain, even to the ear: the same decibels per step from the first to the top, whatever the phone's
+     * own speaker curve says (some report 0 dB for every step, and one press of «+» was then full volume on the PC).
+     */
+    public static float stepGain(int step, int max) {
+        if (step <= 0 || max <= 0) return 0;
+        return (float) Math.pow(10, -STEP_RANGE_DB * (1 - Math.min(1f, (float) step / max)) / 20);
     }
 
     public List<String> viewers() {
@@ -390,6 +397,8 @@ public final class StreamServer {
             boolean wasAuthed = c.authed;
             c.close();
             clients.remove(c);
+            java.util.function.Consumer<String> k = onControl;
+            if (wasAuthed && c.pressing && k != null) k.accept("{\"t\":\"touch\",\"a\":\"up\",\"p\":\"\"}");   // gone mid-press: lift the finger
             if (wasAuthed) viewersChanged();
         }
     }
@@ -405,9 +414,12 @@ public final class StreamServer {
             c.waitingKey = true;
             c.needConfig = true;
             requestKeyframe();
-        } else if ("gesture".equals(t) || "text".equals(t) || "nav".equals(t)) {
+        } else if ("touch".equals(t) || "gesture".equals(t) || "text".equals(t) || "nav".equals(t)) {
             java.util.function.Consumer<String> k = onControl;
-            if (control && k != null) k.accept(msg);   // the phone's owner allowed it; only PIN holders get this far
+            if (control && k != null) {   // the phone's owner allowed it; only PIN holders get this far
+                if ("touch".equals(t)) c.pressing = !"up".equals(field(msg, "a"));
+                k.accept(msg);
+            }
         } else if ("ping".equals(t)) {
             String cl = field(msg, "c");
             c.send(text("{\"t\":\"time\",\"c\":" + (cl == null ? "0" : cl.replaceAll("[^0-9.\\-]", "")) + ",\"s\":" + System.nanoTime() / 1000 + "}"));
@@ -444,7 +456,7 @@ public final class StreamServer {
         c.socket.setSoTimeout(30_000);
         c.send(text("{\"t\":\"auth\",\"ok\":true}"));
         c.send(text("{\"t\":\"hello\",\"v\":" + PROTOCOL + ",\"name\":" + q(name) + ",\"audio\":" + audioJson
-                + ",\"vol\":" + volumeText(volume) + ",\"control\":" + control + "}"));
+                + ",\"vol\":" + volumeText(volume) + ",\"control\":" + control + ",\"touch\":true}"));   // touch: live presses (1.4)
         String vi = videoInfo;
         byte[] cfg = configPacket;
         if (vi != null) c.send(text(vi));
@@ -546,6 +558,7 @@ public final class StreamServer {
         final String ip;
         final LinkedBlockingDeque<Out> queue = new LinkedBlockingDeque<>();
         volatile boolean authed, closed, waitingKey = true, needConfig = true;
+        boolean pressing;   // a live press of this viewer is down on the phone (read and written on its reader thread)
         volatile String name = "?";
 
         Client(Socket socket, OutputStream out) {

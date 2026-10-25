@@ -12,6 +12,11 @@ import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
+import android.graphics.ColorFilter;
+import android.graphics.Paint;
+import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.TransitionDrawable;
 import android.graphics.Typeface;
@@ -505,46 +510,159 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** A stepped slider over values; a tick on each stop, the choice saved and applied when the finger lifts. */
+    private static final int UNIT = 100;   // fine steps between two stops: the thumb follows the finger, then glides to a stop
+
+    /**
+     * A slider over stops: the thumb follows the finger and grows while held, the value rolls over at each stop with a
+     * tick under the finger, and on release the thumb glides to the nearest stop; the choice is saved then. Keys and
+     * TalkBack go stop by stop.
+     */
     private SeekBar stops(int id, int[] values, int current) {
         SeekBar bar = findViewById(id);
-        bar.setMax(values.length - 1);
-        for (int i = 0; i < values.length; i++) if (values[i] == current) bar.setProgress(i);
+        bar.setMax((values.length - 1) * UNIT);
+        bar.setKeyProgressIncrement(UNIT);
+        bar.setTickMark(null);   // one tick per fine step would be hundreds: the stops are drawn under the track instead
+        bar.setBackground(stopDots(bar, values.length));   // in place of the system ripple: the thumb has its own halo
+        Thumb thumb = new Thumb(getColor(R.color.lamp), dp(8), dp(12));
+        bar.setThumb(thumb);
+        for (int i = 0; i < values.length; i++) if (values[i] == current) bar.setProgress(i * UNIT);
+        bar.setTag(stop(bar));   // the chosen stop; the thumb may still be on its way there
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar b, int progress, boolean fromUser) {
-                if (fromUser) b.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
-                renderQuality();
-                if (fromUser && !dragging) saveQuality();   // keys and TalkBack step without a drag
+                if (!fromUser) return;   // a glide: its stop is already shown
+                int was = chosen(b), now = stop(b);
+                if (!dragging) now = Math.max(0, Math.min(values.length - 1, was + Integer.signum(progress - was * UNIT)));   // a key or TalkBack: one whole stop that way
+                if (now != was) {
+                    b.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                    b.setTag(now);
+                    renderQuality(now - was);
+                }
+                if (!dragging) {
+                    glide(b, now * UNIT);
+                    saveQuality();
+                }
             }
-            @Override public void onStartTrackingTouch(SeekBar b) { dragging = true; }
+            @Override public void onStartTrackingTouch(SeekBar b) {
+                dragging = true;
+                thumb.press(true);
+            }
             @Override public void onStopTrackingTouch(SeekBar b) {
                 dragging = false;
+                thumb.press(false);
+                glide(b, chosen(b) * UNIT);
                 saveQuality();   // one encoder rebuild per drag, not one per stop
             }
         });
         return bar;
     }
 
+    /** The stop nearest the thumb. */
+    private static int stop(SeekBar bar) {
+        return Math.round(bar.getProgress() / (float) UNIT);
+    }
+
+    /** The stop the person chose (shown, saved, and where the thumb goes). */
+    private static int chosen(SeekBar bar) {
+        return (Integer) bar.getTag();
+    }
+
+    /** The thumb slides to a stop instead of jumping there (instantly when the system turns animations off). */
+    private static void glide(SeekBar bar, int progress) {
+        ObjectAnimator a = ObjectAnimator.ofInt(bar, "progress", bar.getProgress(), progress);
+        a.setDuration(200);
+        a.setInterpolator(EASE);
+        a.start();
+    }
+
+    /** The stops of a slider: dots on the track where its values are. */
+    private Drawable stopDots(SeekBar bar, int count) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(getColor(R.color.ink2));
+        float r = dp(2);
+        return new Drawable() {
+            @Override public void draw(Canvas c) {
+                Rect b = getBounds();
+                float x0 = b.left + bar.getPaddingLeft(), w = b.width() - bar.getPaddingLeft() - bar.getPaddingRight();
+                for (int i = 0; i < count; i++) c.drawCircle(count < 2 ? x0 : x0 + w * i / (count - 1), b.exactCenterY(), r, p);
+            }
+            @Override public void setAlpha(int alpha) { p.setAlpha(alpha); }
+            @Override public void setColorFilter(ColorFilter f) { p.setColorFilter(f); }
+            @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        };
+    }
+
+    /** The slider's thumb: a lamp-coloured dot that swells, with a soft halo, while the finger holds it. */
+    private static final class Thumb extends Drawable {
+        private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG), halo = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final int radius, size;
+        private float held;   // 0 at rest, 1 while held
+        private ValueAnimator anim;
+
+        Thumb(int color, int radius, int haloRadius) {
+            dot.setColor(color);
+            halo.setColor(color);
+            this.radius = radius;
+            size = haloRadius * 2;
+        }
+
+        void press(boolean on) {
+            if (anim != null) anim.cancel();
+            anim = ValueAnimator.ofFloat(held, on ? 1 : 0);
+            anim.setDuration(on ? 160 : 220);
+            anim.setInterpolator(EASE);
+            anim.addUpdateListener(a -> { held = (float) a.getAnimatedValue(); invalidateSelf(); });
+            anim.start();
+        }
+
+        @Override public void draw(Canvas c) {
+            Rect b = getBounds();
+            float cx = b.exactCenterX(), cy = b.exactCenterY();
+            halo.setAlpha(Math.round(0.22f * 255 * held));
+            if (held > 0) c.drawCircle(cx, cy, size / 2f * (0.6f + 0.4f * held), halo);
+            c.drawCircle(cx, cy, radius * (1 + 0.25f * held), dot);
+        }
+        @Override public int getIntrinsicWidth() { return size; }
+        @Override public int getIntrinsicHeight() { return size; }
+        @Override public void setAlpha(int alpha) { dot.setAlpha(alpha); }
+        @Override public void setColorFilter(ColorFilter f) { dot.setColorFilter(f); halo.setColorFilter(f); }
+        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+    }
+
     private void saveQuality() {
         CaptureService.prefs(this).edit()
-                .putInt("size", sizes[sizeBar.getProgress()]).putInt("fps", fpsStops[fpsBar.getProgress()]).apply();
+                .putInt("size", sizes[chosen(sizeBar)]).putInt("fps", fpsStops[chosen(fpsBar)]).apply();
         CaptureService s = CaptureService.instance;
         if (s != null) s.retune();
     }
 
     private void renderQuality() {
+        renderQuality(0);
+    }
+
+    /** dir: which way the value just moved (its text rolls in from that side), 0 for none. */
+    private void renderQuality(int dir) {
         if (sizeBar == null || fpsBar == null) return;   // the first setProgress comes before both exist
-        int size = sizes[sizeBar.getProgress()], fps = fpsStops[fpsBar.getProgress()];
+        int size = sizes[chosen(sizeBar)], fps = fpsStops[chosen(fpsBar)];
         int[] screen = ScreenEncoder.displaySize(this);
         String sizeText = getString(size >= Math.max(screen[0], screen[1]) ? R.string.size_value_screen : R.string.size_value, size);
         String fpsText = getString(R.string.fps_value, fps);
-        sizeValue.setText(sizeText);
-        fpsValue.setText(fpsText);
+        roll(sizeValue, sizeText, dir);
+        roll(fpsValue, fpsText, dir);
         describe(sizeBar, R.string.size_label, sizeText);
         describe(fpsBar, R.string.fps_label, fpsText);
         String mbps = String.format(Locale.forLanguageTag("ru"), "%.1f", StreamServer.targetBitrate(size, fps) / 1e6);
         CaptureService s = CaptureService.instance;
         qualityHint.setText(getString(s != null && s.port > 0 ? R.string.quality_live : R.string.quality_hint, mbps));
+    }
+
+    /** A value that changed rolls in: from below when it grew, from above when it shrank. */
+    private void roll(TextView v, String text, int dir) {
+        if (text.contentEquals(v.getText())) return;
+        v.setText(text);
+        if (dir == 0) return;
+        v.setTranslationY(Integer.signum(dir) * dp(8));
+        v.setAlpha(0.2f);
+        v.animate().translationY(0).alpha(1).setDuration(180).setInterpolator(EASE).start();
     }
 
     /** TalkBack reads "Плавность, 60 кадров/с", not a percentage. */

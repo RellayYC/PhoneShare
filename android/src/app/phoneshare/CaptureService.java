@@ -15,7 +15,6 @@ import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.hardware.display.DisplayManager;
 import android.media.AudioAttributes;
-import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioPlaybackCaptureConfiguration;
@@ -231,7 +230,10 @@ public final class CaptureService extends Service {
     /** Tells the viewers whether they may control the phone now; they show or hide their control button. */
     void applyControl() {
         StreamServer s = server;
-        if (s != null) s.setControl(controlReady());
+        boolean ready = controlReady();
+        if (s != null) s.setControl(ready);
+        ControlService c = ControlService.instance;
+        if (!ready && c != null) main.post(c::lift);   // a press held from the PC does not outlive control
         changed();
     }
 
@@ -243,6 +245,8 @@ public final class CaptureService extends Service {
     }
 
     private void cleanup() {
+        ControlService control = ControlService.instance;
+        if (control != null) main.post(control::lift);   // the stream stops mid-press: the finger comes up
         if (listening) unregisterReceiver(volumeKeys);
         listening = false;
         stopAudio();
@@ -328,15 +332,7 @@ public final class CaptureService extends Service {
         if (s == null || am == null) return;
         boolean ours = prefs(this).getBoolean("muted_by_app", false);
         int step = !ours && am.isStreamMute(AudioManager.STREAM_MUSIC) ? 0 : level;   // muted by the person: silence on the PC too
-        float gain = 0;
-        if (step > 0) {
-            try {   // the phone's own loudness curve for its speaker
-                gain = StreamServer.gain(am.getStreamVolumeDb(AudioManager.STREAM_MUSIC, step, AudioDeviceInfo.TYPE_BUILTIN_SPEAKER));
-            } catch (IllegalArgumentException e) {
-                gain = (float) step / am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-            }
-        }
-        s.setVolume(gain);
+        s.setVolume(StreamServer.stepGain(step, am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)));
     }
 
     private void stopAudio() {

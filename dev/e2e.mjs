@@ -117,6 +117,12 @@ async function runWebCodecs() {
   fake.send('volume 0.25');
   await a.waitFor(`__ps.phoneVolume === 0.25 && Math.abs(__ps.gain - ${own} * 0.25) < 1e-6`, 3000, 'phone volume');
   check(true, `phone volume 0.25 scales the player: gain ${own} -> ${await a.eval('__ps.gain')}`);
+  // the PC slider is even to the ear: half way is -24 dB, not half the gain
+  const slide = (v) => a.eval(`(() => { const i = document.getElementById('volume'); i.value = ${v}; i.dispatchEvent(new Event('input')); return __ps.gain; })()`);
+  const half = await slide(50);
+  const low = await slide(10);
+  check(Math.abs(half - 0.0631 * 0.25) < 1e-3 && Math.abs(low - 0.0069 * 0.25) < 1e-4, `PC volume slider in decibels: 50 % -> ${half.toFixed(4)}, 10 % -> ${low.toFixed(4)} (times the phone's 0.25)`);
+  await slide(80);
   fake.send('audio off');
   await a.waitFor(`document.getElementById('toast').textContent === 'Телефон выключил звук'`, 3000, 'sound off notice');
   const quiet = await ps(a, 'audioChunks');
@@ -168,8 +174,14 @@ async function checkControl(a) {
   await a.eval(`document.getElementById('control').click(); true`);
   await a.waitFor(`__ps.controlling && document.getElementById('control').getAttribute('aria-pressed') === 'true'`, 2000, 'control mode');
   await sleep(400);   // the picture moves out from under the bars
-  const clear = await a.eval(`(() => { const s = document.getElementById('stage').getBoundingClientRect(); return s.top >= document.querySelector('.hud-top').getBoundingClientRect().bottom && s.bottom <= document.querySelector('.hud-bottom').getBoundingClientRect().top; })()`);
-  check(clear, 'controlling: the picture sits between the control bars, none of it under them');
+  const under = await a.eval(`(() => {   // the picture itself (not its black bars) against every control plate
+    const c = document.getElementById('canvas').getBoundingClientRect();
+    const k = Math.min(c.width / __ps.width, c.height / __ps.height);
+    const w = __ps.width * k, h = __ps.height * k, x = c.x + (c.width - w) / 2, y = c.y + (c.height - h) / 2;
+    return [...document.querySelectorAll('.hud-top > *, .hud-dock > *')].filter((e) => e.offsetWidth).map((e) => [e, e.getBoundingClientRect()])
+      .filter(([, r]) => r.left < x + w && r.right > x && r.top < y + h && r.bottom > y).map(([e]) => e.className || e.id);
+  })()`);
+  check(under.length === 0, 'controlling: no control plate lies over the picture ' + under.join(' '));
 
   // «Вписать»: the centre is the centre; the bars beside the picture are not the phone
   r = await rect();
@@ -178,28 +190,47 @@ async function checkControl(a) {
   const ch = 1280 * k;
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
-  n = sent().length;
-  await click(cx, cy);
-  got = await waitSent(n, 1, 'tap');
+  /** A click: the press and the release, as the phone gets them. */
+  const tap = async (x, y, what) => { const n0 = sent().length; await click(x, y); return waitSent(n0, 2, what); };
+  const isTap = (m) => m[0].t === 'touch' && m[0].a === 'down' && m[1].t === 'touch' && m[1].a === 'up';
+  got = await tap(cx, cy, 'tap');
   let p = pts(got[0]);
-  check(got[0].t === 'gesture' && p.length === 2 && near(p[0][0], 0.5) && near(p[0][1], 0.5), `a click at the centre of the picture taps the phone at 0.5,0.5 (${got[0].p})`);
+  check(isTap(got) && near(p[0][0], 0.5) && near(p[0][1], 0.5), `a click at the centre of the picture presses the phone at 0.5,0.5 and lets go (${got[0].p})`);
   check(r.w - cw > 40, 'the window is wider than the picture: there are bars beside it');
+  n = sent().length;
   await click(r.x + (r.w - cw) / 4, cy);
   await sleep(300);
-  check(sent().length === n + 1, 'a click on the bars beside the picture sends nothing');
+  check(sent().length === n, 'a click on the bars beside the picture sends nothing');
 
-  // a drag: the path from the press to the release, with its timing
+  // live: the finger is down on the phone while the mouse button is still held, and follows the mouse
   n = sent().length;
   const ya = cy + ch * 0.3;
   const yb = cy - ch * 0.3;
   await mouse('mousePressed', cx, ya);
-  for (let i = 1; i <= 10; i++) { await mouse('mouseMoved', cx, ya + (yb - ya) * i / 10, 'left', { buttons: 1 }); await sleep(20); }
-  await mouse('mouseReleased', cx, yb);
-  got = await waitSent(n, 1, 'drag');
+  got = await waitSent(n, 1, 'press before the release');
   p = pts(got[0]);
-  const last = p[p.length - 1];
-  check(got[0].t === 'gesture' && p.length >= 5 && Math.abs(p[0][1] - 0.8) < 0.02 && Math.abs(last[1] - 0.2) < 0.02 && last[2] >= 100,
-    `a drag is a swipe along its path with its timing (${p.length} points, 0.8 -> ${last[1]}, ${last[2]} ms)`);
+  check(got[0].t === 'touch' && got[0].a === 'down' && Math.abs(p[0][1] - 0.8) < 0.02, 'live: the press reaches the phone at once, with the mouse button still down');
+  for (let i = 1; i <= 10; i++) { await mouse('mouseMoved', cx, ya + (yb - ya) * i / 10, 'left', { buttons: 1 }); await sleep(20); }
+  await sleep(200);
+  const moves = sent().slice(n + 1).filter((m) => m.t === 'touch' && m.a === 'move');
+  check(moves.length >= 5 && !sent().slice(n).some((m) => m.a === 'up'), `live: the finger follows the mouse while it is held (${moves.length} moves, no release yet)`);
+  await mouse('mouseReleased', cx, yb);
+  got = await waitSent(n, moves.length + 2, 'release');
+  const up = got[got.length - 1];
+  const times = got.map((m) => pts(m)).filter((q) => q.length).map((q) => q[0][2]);
+  check(up.a === 'up' && Math.abs(pts(up)[0][1] - 0.2) < 0.02 && times.every((t, i) => i === 0 || t >= times[i - 1]) && times[times.length - 1] >= 100,
+    `live: the release lets go at the end of the drag (0.8 -> ${pts(up)[0][1]}, ${times[times.length - 1]} ms after the press)`);
+
+  // the mode switched off mid-press lets go on the phone
+  n = sent().length;
+  await mouse('mousePressed', cx, cy);
+  await waitSent(n, 1, 'press');
+  await a.eval(`document.getElementById('control').click(); true`);
+  got = await waitSent(n, 2, 'let go');
+  check(got[1].t === 'touch' && got[1].a === 'up', 'control mode switched off mid-press: the finger comes up on the phone');
+  await mouse('mouseReleased', cx, cy);
+  await a.eval(`document.getElementById('control').click(); true`);
+  await a.waitFor(`__ps.controlling`, 2000, 'control mode again');
 
   // the right button is «Назад», the middle one «Домой»
   n = sent().length;
@@ -237,23 +268,17 @@ async function checkControl(a) {
   // the other scales: «Растянуть» stretches, 1:1 keeps the phone's pixels, «Заполнить» crops top and bottom
   await fit('fill');
   r = await rect();
-  n = sent().length;
-  await click(r.x + r.w * 0.25, r.y + r.h * 0.75);
-  got = await waitSent(n, 1, 'fill tap');
+  got = await tap(r.x + r.w * 0.25, r.y + r.h * 0.75, 'fill tap');
   p = pts(got[0]);
   check(near(p[0][0], 0.25) && near(p[0][1], 0.75), `«Растянуть»: a click a quarter across, three quarters down taps 0.25,0.75 (${got[0].p})`);
   await fit('native');
   r = await rect();
-  n = sent().length;
-  await click(r.x + r.w * 0.1, r.y + r.h * 0.1);
-  got = await waitSent(n, 1, 'native tap');
+  got = await tap(r.x + r.w * 0.1, r.y + r.h * 0.1, 'native tap');
   p = pts(got[0]);
   check(near(p[0][0], 0.1) && near(p[0][1], 0.1), `1:1: a click 72 px across and 128 px down a 720x1280 picture taps 0.1,0.1 (${got[0].p})`);
   await fit('cover');
   r = await rect();
-  n = sent().length;
-  await click(r.x + r.w / 2, r.y + 1);
-  got = await waitSent(n, 1, 'cover tap');
+  got = await tap(r.x + r.w / 2, r.y + 1, 'cover tap');
   p = pts(got[0]);
   const hidden = (1280 * Math.max(r.w / 720, r.h / 1280) - r.h) / 2 / (1280 * Math.max(r.w / 720, r.h / 1280));
   check(near(p[0][0], 0.5) && p[0][1] > 0.1 && Math.abs(p[0][1] - hidden) < 0.01, `«Заполнить»: the top of the window is ${Math.round(hidden * 100)} % down the cropped phone screen (${got[0].p})`);
@@ -361,6 +386,34 @@ async function runUi() {
   await named(d, 'player');
   await noHScroll(d, 'desktop player');
   check(await d.eval(`getComputedStyle(document.getElementById('ontop')).display !== 'none'`), 'desktop-only buttons visible in the app');
+
+  // the dock: a column at the right edge; the scales and the volume open out of it to the left
+  const center = (id) => d.eval(`(() => { const r = document.getElementById('${id}').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  const press = async ([x, y]) => {
+    await d.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+    await d.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+  };
+  check(await d.eval(`(() => { const k = document.querySelector('.hud-dock'), r = k.getBoundingClientRect(); return getComputedStyle(k).flexDirection === 'column' && r.right > innerWidth - 20 && r.top > 60; })()`),
+    'desktop: the player controls stand in a column at the right edge');
+  await press(await center('scale'));
+  await sleep(300);
+  check(await d.eval(`getComputedStyle(document.getElementById('seg')).visibility === 'visible' && document.getElementById('scale').getAttribute('aria-expanded') === 'true'
+    && document.getElementById('seg').getBoundingClientRect().right < document.getElementById('scale').getBoundingClientRect().left`), 'the scale button opens the scales beside the dock');
+  await snap(d, 'desktop-player-scales');
+  await d.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(300);
+  check(await d.eval(`getComputedStyle(document.getElementById('seg')).visibility === 'hidden'`), 'Esc closes the scales');
+  await press(await center('scale'));
+  await sleep(300);
+  await d.eval(`document.querySelector('[data-fit="fill"]').click(); true`);
+  await sleep(500);
+  check(await d.eval(`document.getElementById('player').dataset.fit === 'fill' && getComputedStyle(document.getElementById('seg')).visibility === 'hidden'`), 'choosing a scale applies it and closes the scales');
+  await d.eval(`document.querySelector('[data-fit="contain"]').click(); true`);
+  const [mx, my] = await center('mute');
+  await d.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: mx, y: my });
+  await sleep(300);
+  check(await d.eval(`getComputedStyle(document.querySelector('.vol-pop')).visibility === 'visible'`), 'the volume slider opens beside the speaker button on hover');
+  await snap(d, 'desktop-player-volume');
   await d.eval(`document.querySelector('[data-fit="cover"]').click(); true`);
   await hover(d);
   await sleep(400);
@@ -439,6 +492,9 @@ async function runUi() {
   await noHScroll(m, 'mobile player');
   await named(m, 'mobile player');
   check(await m.eval(`getComputedStyle(document.getElementById('ontop')).display === 'none'`), 'desktop-only buttons hidden in the browser');
+  check(await m.eval(`(() => { const k = document.querySelector('.hud-dock'); return getComputedStyle(k).flexDirection === 'row' && k.getBoundingClientRect().bottom > innerHeight - 30
+    && getComputedStyle(document.getElementById('seg')).visibility === 'visible' && getComputedStyle(document.getElementById('scale')).display === 'none'; })()`),
+    'phone-sized: the controls stay a row under the picture, the scales out in the open');
   check(await m.eval(`getComputedStyle(document.getElementById('miracast')).display === 'none'`), 'Miracast section (Windows app only) hidden in the browser');
   await m.eval(`document.getElementById('control').click(); true`);
   await hover(m);
