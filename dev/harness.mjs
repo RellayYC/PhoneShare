@@ -7,11 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const out = join(root, 'dev', '.out');
-const jdk = process.env.JAVA_HOME || 'W:/jdk';
+const WIN = process.platform === 'win32';
+const jdk = process.env.JAVA_HOME || (WIN ? 'W:/jdk' : '/usr');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function killTree(pid) {
-  if (pid) spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore' });
+  if (!pid) return;
+  if (WIN) spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore' });
+  else try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }   // started detached: its own process group
 }
 
 /** First non-loopback IPv4: a page opened on it is NOT a secure context, which forces the MSE path. */
@@ -34,7 +37,7 @@ export function compileFake() {
 export async function startFake({ pin = '135790', port = 8080, udp = 47800, rotateEvery = 0, name = 'FakePhone' } = {}) {
   const cp = join(out, 'fake');
   const proc = spawn(join(jdk, 'bin', 'java'), ['-cp', cp, 'app.phoneshare.FakePhone', '--pin', pin, '--port', String(port),
-    '--udp', String(udp), '--rotate-every', String(rotateEvery), '--name', name, '--web', join(root, 'web')], { stdio: ['pipe', 'pipe', 'inherit'] });
+    '--udp', String(udp), '--rotate-every', String(rotateEvery), '--name', name, '--web', join(root, 'web')], { stdio: ['pipe', 'pipe', 'inherit'], detached: !WIN });
   let log = '';
   const actual = await new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('FakePhone did not start: ' + log)), 20000);
@@ -58,8 +61,8 @@ export async function startFake({ pin = '135790', port = 8080, udp = 47800, rota
 }
 
 export function chromePath() {
-  const c = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
+  const c = [process.env.CHROME, 'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    'C:/Program Files/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].filter(Boolean).find(existsSync);
   if (!c) throw new Error('no Chrome or Edge found');
   return c;
 }
@@ -67,8 +70,10 @@ export function chromePath() {
 export async function startChrome(debugPort) {
   const profile = join(out, 'chrome-profile-' + debugPort);
   rmSync(profile, { recursive: true, force: true });
+  // the phone is on this network: never send its pages through a proxy; root (a Linux container) needs --no-sandbox
   const proc = spawn(chromePath(), ['--headless=new', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`,
-    '--autoplay-policy=no-user-gesture-required', '--no-first-run', '--no-default-browser-check', '--disable-extensions', 'about:blank'], { stdio: 'ignore' });
+    '--autoplay-policy=no-user-gesture-required', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--no-proxy-server',
+    ...(process.getuid && process.getuid() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore', detached: !WIN });
   await waitHttp(`http://127.0.0.1:${debugPort}/json/version`, 20000);
   return { debugPort, stop: () => killTree(proc.pid) };
 }
