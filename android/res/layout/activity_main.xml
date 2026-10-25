@@ -3,7 +3,7 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:clipToPadding="false"
+    android:clipToPadding="true"
     android:fillViewport="true">
 
     <LinearLayout
@@ -188,7 +188,10 @@
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout style="@style/Card">
+        <!-- the sliders reach into the card's padding so their tracks line up with the text: no clipping there -->
+        <LinearLayout
+            style="@style/Card"
+            android:clipToPadding="false">
 
             <TextView
                 style="@style/Label"
