@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.hardware.display.DisplayManager;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
@@ -23,6 +24,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.provider.Settings;
+import android.view.Display;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,9 +38,6 @@ import java.util.Locale;
 public final class CaptureService extends Service {
     static final String ACTION_STOP = "app.phoneshare.STOP";
     static final String EXTRA_CODE = "code", EXTRA_DATA = "data";
-
-    // quality presets: max long side, bitrate, fps
-    static final int[][] PRESETS = {{1280, 4_000_000, 30}, {1920, 8_000_000, 60}, {2560, 16_000_000, 60}};
 
     /** Running session, read by MainActivity. */
     static volatile CaptureService instance;
@@ -72,6 +71,32 @@ public final class CaptureService extends Service {
             prefs(c).edit().putString("pin", p).apply();
         }
         return p;
+    }
+
+    /**
+     * {long side px, fps} the user picked. Before 1.1 one preset set both; its choice carries over:
+     * economy 1280/30, balance 1920/60, maximum 2560/60.
+     */
+    static int[] video(Context c) {
+        SharedPreferences p = prefs(c);
+        int preset = Math.max(0, Math.min(2, p.getInt("preset", 1)));
+        int size = p.getInt("size", new int[] {1280, 1920, 2560}[preset]);
+        int fps = p.getInt("fps", preset == 0 ? 30 : 60);
+        return new int[] {size, Math.min(fps, maxFps(c))};
+    }
+
+    /** The fastest frame rate this phone's screen shows (60 on most, 90 or 120 on fast screens). */
+    static int maxFps(Context c) {
+        float hz = 60;
+        Display d = c.getSystemService(DisplayManager.class).getDisplay(Display.DEFAULT_DISPLAY);
+        if (d != null) for (Display.Mode m : d.getSupportedModes()) hz = Math.max(hz, m.getRefreshRate());
+        return Math.round(hz);
+    }
+
+    /** Applies the saved sharpness and smoothness to a running stream right away. */
+    void retune() {
+        int[] v = video(this);
+        if (encoder != null) encoder.retune(v[0], StreamServer.targetBitrate(v[0], v[1]), v[1]);
     }
 
     static String newPin() {
@@ -141,8 +166,8 @@ public final class CaptureService extends Service {
         server.setAudioFormat(audioOn ? 48000 : 0, 2);
         port = server.start(StreamServer.HTTP_PORT, StreamServer.DISCOVERY_PORT);
 
-        int[] p = PRESETS[Math.max(0, Math.min(2, prefs(this).getInt("preset", 1)))];
-        encoder = new ScreenEncoder(this, projection, server, main, p[0], p[1], p[2]);
+        int[] v = video(this);
+        encoder = new ScreenEncoder(this, projection, server, main, v[0], StreamServer.targetBitrate(v[0], v[1]), v[1]);
         server.onKeyframeNeeded = encoder::requestKeyframe;
         encoder.start();
         updateNotification();

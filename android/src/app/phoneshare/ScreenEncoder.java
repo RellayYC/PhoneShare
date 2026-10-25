@@ -32,11 +32,12 @@ final class ScreenEncoder {
     private final MediaProjection projection;
     private final StreamServer server;
     private final Handler handler;
-    private final int maxSize, targetBitrate, fps;
+    private int maxSize, targetBitrate, fps;   // changed by retune(); all on the handler thread
 
     private VirtualDisplay display;
     private volatile MediaCodec codec;
     private int width, height, bitrate, quietSeconds;
+    private int[] source;   // the captured size the encoder was last configured for
     private boolean contentSized;   // Android 14+ reports the captured size itself (single-app capture too)
     private volatile boolean running;
 
@@ -56,6 +57,26 @@ final class ScreenEncoder {
         configure(displaySize());
         ctx.getSystemService(DisplayManager.class).registerDisplayListener(displayListener, handler);
         handler.postDelayed(adjustBitrate, 1000);
+    }
+
+    /**
+     * New sharpness and smoothness while streaming: the encoder is rebuilt like on a rotation, which every viewer
+     * already follows (new size, new SPS/PPS, a keyframe).
+     */
+    void retune(int maxSize, int bitrate, int fps) {
+        handler.post(() -> {
+            if (!running || (maxSize == this.maxSize && bitrate == targetBitrate && fps == this.fps)) return;
+            this.maxSize = maxSize;
+            this.targetBitrate = bitrate;
+            this.fps = fps;
+            this.bitrate = bitrate;
+            quietSeconds = 0;
+            try {
+                configure(source);
+            } catch (IOException e) {
+                StreamServer.log("retune failed: " + e);
+            }
+        });
     }
 
     void stop() {
@@ -148,14 +169,16 @@ final class ScreenEncoder {
 
     private synchronized void configure(int[] size) throws IOException {
         releaseCodec();
+        source = size;
         IOException last = null;
-        for (int limit : FALLBACK_SIZES) {
+        // 90 and 120 fps are offered on fast screens; an encoder that refuses them at every size gets 60
+        for (int f : fps > 60 ? new int[] {fps, 60} : new int[] {fps}) for (int limit : FALLBACK_SIZES) {
             if (limit > maxSize && limit != FALLBACK_SIZES[FALLBACK_SIZES.length - 1]) continue;
             int[] s = scale(size[0], size[1], Math.min(limit, maxSize));
             MediaCodec c = null;
             try {
                 c = MediaCodec.createEncoderByType(MIME);
-                c.configure(format(s[0], s[1]), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+                c.configure(format(s[0], s[1], f), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
                 Surface surface = c.createInputSurface();
                 c.start();
                 int dpi = ctx.getResources().getDisplayMetrics().densityDpi;
@@ -173,6 +196,8 @@ final class ScreenEncoder {
                 final MediaCodec running = c;
                 Thread t = new Thread(() -> drain(running), "ps-encoder");
                 t.start();
+                if (f != fps) StreamServer.log("encoder refused " + fps + " fps, using " + f);
+                fps = f;
                 StreamServer.log("encoder " + width + "x" + height + " @" + fps + " " + bitrate / 1000 + " kbps (" + c.getName() + ")");
                 return;
             } catch (IOException | RuntimeException e) {
@@ -184,7 +209,7 @@ final class ScreenEncoder {
         throw last;
     }
 
-    private MediaFormat format(int w, int h) {
+    private MediaFormat format(int w, int h, int fps) {
         MediaFormat f = MediaFormat.createVideoFormat(MIME, w, h);
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         f.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);

@@ -45,6 +45,22 @@ public final class ServerTest {
         check(StreamServer.nextBitrate(4_000_000, 8_000_000, false, 5) == 4_600_000, "bitrate rises 15%");
         check(StreamServer.nextBitrate(7_900_000, 8_000_000, false, 9) == 8_000_000, "bitrate capped at target");
 
+        check(StreamServer.targetBitrate(1280, 30) == 4_000_000, "1280 px at 30 fps: 4 Mbps, as the old economy preset");
+        check(StreamServer.targetBitrate(1920, 60) == 9_100_000, "1920 px at 60 fps: 9.1 Mbps, near the old 8");
+        check(StreamServer.targetBitrate(2560, 60) == 15_200_000, "2560 px at 60 fps: 15.2 Mbps, near the old 16");
+        check(StreamServer.targetBitrate(960, 15) == 1_600_000, "low end: 960 px at 15 fps");
+        check(StreamServer.targetBitrate(2560, 120) == 23_000_000, "high end: 2560 px at 120 fps stays under the cap");
+        boolean rising = true;
+        for (int s = 0; s < StreamServer.SIZES.length; s++) {
+            for (int f = 0; f < StreamServer.FPS.length; f++) {
+                int b = StreamServer.targetBitrate(StreamServer.SIZES[s], StreamServer.FPS[f]);
+                if (b < StreamServer.MIN_BITRATE || b > StreamServer.MAX_BITRATE) rising = false;
+                if (f > 0 && b <= StreamServer.targetBitrate(StreamServer.SIZES[s], StreamServer.FPS[f - 1])) rising = false;
+                if (s > 0 && b <= StreamServer.targetBitrate(StreamServer.SIZES[s - 1], StreamServer.FPS[f])) rising = false;
+            }
+        }
+        check(rising, "bitrate grows with size and with fps, inside the floor and the cap");
+
         AtomicInteger keyRequests = new AtomicInteger();
         StreamServer srv = new StreamServer("TestPhone", PIN, name -> {
             if (name.equals("index.html")) return "<!doctype html>INDEX".getBytes(StandardCharsets.UTF_8);
