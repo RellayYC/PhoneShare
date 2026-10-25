@@ -52,6 +52,8 @@ export async function startFake({ pin = '135790', port = 8080, udp = 47800, rota
   return {
     port: actual,
     get log() { return log; },
+    /** "volume 0.25", "audio off", "audio on": what the phone's volume keys and sound switch do */
+    send(command) { proc.stdin.write(command + '\n'); },
     async stop() {
       try { proc.stdin.write('quit\n'); } catch { /* already gone */ }
       const done = await Promise.race([new Promise((r) => proc.on('exit', () => r(true))), sleep(4000).then(() => false)]);

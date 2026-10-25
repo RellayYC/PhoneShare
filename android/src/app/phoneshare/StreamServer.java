@@ -60,6 +60,7 @@ public final class StreamServer {
     private final Function<String, byte[]> assets;
     private volatile String pin;
     private volatile String audioJson = "null";
+    private volatile float volume = 1;   // the phone's media volume as linear gain; viewers multiply their own by it
     private volatile String videoInfo;      // {"t":"video",...} for the current encoder
     private volatile byte[] configPacket;   // SPS+PPS packet for the current encoder
 
@@ -130,9 +131,31 @@ public final class StreamServer {
     public int port() { return port; }
     public void setPin(String pin) { this.pin = pin; }
 
-    /** Audio format announced to viewers; rate 0 = no audio. */
+    /** Audio format announced to viewers; rate 0 = no audio. A change reaches viewers already watching too. */
     public void setAudioFormat(int rate, int channels) {
-        audioJson = rate <= 0 ? "null" : "{\"rate\":" + rate + ",\"ch\":" + channels + "}";
+        String json = rate <= 0 ? "null" : "{\"rate\":" + rate + ",\"ch\":" + channels + "}";
+        if (json.equals(audioJson)) return;
+        audioJson = json;
+        Out o = text("{\"t\":\"audio\",\"audio\":" + json + "}");
+        for (Client c : authed()) c.send(o);
+    }
+
+    /** The phone's media volume as linear gain 0..1, sent to every viewer when it changes. */
+    public void setVolume(float gain) {
+        float v = Math.max(0, Math.min(1, gain));
+        if (v == volume) return;
+        volume = v;
+        Out o = text("{\"t\":\"volume\",\"v\":" + volumeText(v) + "}");
+        for (Client c : authed()) c.send(o);
+    }
+
+    static String volumeText(float v) {
+        return String.format(Locale.ROOT, "%.3f", v);
+    }
+
+    /** Linear gain for a volume step in decibels (negative infinity, i.e. step 0, is silence). */
+    public static float gain(float db) {
+        return db <= -96 || Float.isNaN(db) ? 0 : (float) Math.min(1, Math.pow(10, db / 20));
     }
 
     public List<String> viewers() {
@@ -406,7 +429,8 @@ public final class StreamServer {
         c.name = cleanName(viewerName);
         c.socket.setSoTimeout(30_000);
         c.send(text("{\"t\":\"auth\",\"ok\":true}"));
-        c.send(text("{\"t\":\"hello\",\"v\":" + PROTOCOL + ",\"name\":" + q(name) + ",\"audio\":" + audioJson + "}"));
+        c.send(text("{\"t\":\"hello\",\"v\":" + PROTOCOL + ",\"name\":" + q(name) + ",\"audio\":" + audioJson
+                + ",\"vol\":" + volumeText(volume) + "}"));
         String vi = videoInfo;
         byte[] cfg = configPacket;
         if (vi != null) c.send(text(vi));

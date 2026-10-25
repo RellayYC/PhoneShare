@@ -15,6 +15,7 @@ const store = {
 const stats = window.__ps = {
   screen: '', state: 'idle', decoder: canWebCodecs ? 'webcodecs' : 'mse', frames: 0, audioChunks: 0, audioState: '',
   width: 0, height: 0, latencyMs: null, fps: 0, kbps: 0, reconnects: 0, errors: [], secure: window.isSecureContext,
+  phoneVolume: 1, gain: null,
 };
 
 let viewerName = DESKTOP ? 'ПК' : browserName();
@@ -112,7 +113,15 @@ function renderDevices() {
     if (now - d.at < 7000) all.set(k, { ...d, online: true, saved: all.has(k) });
   }
   const items = [...all.values()].sort((a, b) => (b.online - a.online) || String(a.name).localeCompare(String(b.name)));
-  $('shelf').replaceChildren(...items.map(phoneCard));
+  const cards = items.map(phoneCard);
+  let n = 0;
+  cards.forEach((li, i) => {   // the list is redrawn every 3 s: only a phone not shown before slides in
+    if (shown.has(devKey(items[i]))) return;
+    shown.add(devKey(items[i]));
+    li.classList.add('enter');
+    li.style.setProperty('--i', String(n++));
+  });
+  $('shelf').replaceChildren(...cards);
   $('shelf-empty').hidden = items.length > 0;
   // nothing online: open the help without waiting for a click, unless the person already chose
   if (!helpTouched) $('help').open = !items.some((d) => d.online);
@@ -150,6 +159,7 @@ function phoneCard(d) {
 }
 
 let helpTouched = false;
+const shown = new Set();   // phones already drawn once, so a redraw does not animate them again
 document.querySelector('#help summary').addEventListener('click', () => { helpTouched = true; });
 
 /** "Этот ПК: сеть «Home», адрес 192.168.1.23." from the window's list of networks. */
@@ -176,6 +186,7 @@ if (DESKTOP) {
       if (stats.screen === 'home') renderDevices();
     } else if (m.t === 'host') {
       viewerName = 'ПК ' + m.name;
+      if (m.version) $('version').textContent = `PhoneShare ${m.version}`;
       pcName = m.name;
       renderPcNet(m.nets);
     } else if (m.t === 'miracast') {
@@ -194,8 +205,17 @@ $('rescan').addEventListener('click', discover);
 
 // ---------------------------------------------------------------- updates (Windows app): the window checks GitHub, the page offers
 
+let checking = 0;   // a check the person asked for: its answer is shown, an automatic one's error is not
 function renderUpdate(m) {
-  stats.update = m;   // read by dev/update-e2e.mjs; a failed check (m.checkError) stays silent
+  stats.update = m;   // read by dev/update-e2e.mjs
+  if (checking && m.progress == null) {
+    clearTimeout(checking);
+    checking = 0;
+    $('update-check').disabled = false;
+    document.body.classList.remove('checking');
+    $('update-status').textContent = m.checkError ? 'Не получилось проверить: нет связи с GitHub.'
+      : m.latest ? 'Установлена последняя версия' : '';
+  }
   if (!m.version) return;
   const busy = m.progress != null && !m.error;
   $('update-text').textContent = m.error ? `Обновление не скачалось: ${m.error}`
@@ -206,6 +226,15 @@ function renderUpdate(m) {
 }
 
 if (DESKTOP) $('update-go').addEventListener('click', () => { $('update-go').disabled = true; host.postMessage('update'); });
+
+if (DESKTOP) $('update-check').addEventListener('click', () => {
+  $('update-check').disabled = true;
+  document.body.classList.add('checking');
+  $('update-status').textContent = 'Проверяю…';
+  host.postMessage('update?');
+  // no answer (a download is already running, the window is busy): say so instead of spinning forever
+  checking = setTimeout(() => renderUpdate({ checkError: 'timeout' }), 15000);
+});
 
 // ---------------------------------------------------------------- Miracast (Windows app): the phone casts to Windows' own receiver
 
@@ -232,13 +261,19 @@ if (DESKTOP) {
   window.addEventListener('focus', () => { if (stats.screen === 'home') host.postMessage('miracast?'); });
 }
 
+// The typed address stays in the field and on the shelf: next time it is one click, even where discovery fails.
+$('add-host').value = store.get('lastHost', '');
 $('add-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const raw = $('add-host').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const m = /^([a-z0-9.-]+)(?::(\d{1,5}))?$/i.exec(raw);
   if (!m) { $('add-error').textContent = 'Нужен адрес вида 192.168.1.23:8080.'; return; }
   $('add-error').textContent = '';
-  openDevice({ host: m[1], port: Number(m[2] || 8080), name: m[1] });
+  store.set('lastHost', raw);
+  const typed = { host: m[1], port: Number(m[2] || 8080), name: m[1] };
+  const dev = saved.find((x) => devKey(x) === devKey(typed)) || typed;   // a phone seen before keeps its name
+  if (DESKTOP) saveDevice(dev);
+  openDevice(dev);
 });
 
 function openDevice(dev) {
@@ -259,7 +294,7 @@ function showPin(dev, error, lockedSec) {
   fillScreen($('pin-card'), dev);
   $('pin-input').value = '';
   renderCells();
-  setPinError(error || '');
+  setPinError(error || '', !!error);
   clearInterval(lockTimer);
   setPinLocked(false);
   if (lockedSec > 0) {
@@ -283,9 +318,15 @@ function setPinLocked(on) {
   $('pin-submit').disabled = on;
 }
 
-function setPinError(text) {
+function setPinError(text, shake) {
   $('pin-error').textContent = text;
-  document.querySelector('.pin-field').classList.toggle('bad', !!text && !$('pin-input').disabled);
+  const field = document.querySelector('.pin-field');
+  field.classList.toggle('bad', !!text && !$('pin-input').disabled);
+  if (shake && text) {   // a refused PIN: a short shake on top of the red edge and the message
+    field.classList.remove('shake');
+    void field.offsetWidth;   // restart the animation if it is still running
+    field.classList.add('shake');
+  }
 }
 
 function renderCells() {
@@ -307,7 +348,7 @@ $('pin-input').addEventListener('input', () => {
 $('pin-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const v = $('pin-input').value;
-  if (v.length !== 6) { setPinError('PIN состоит из 6 цифр.'); return; }
+  if (v.length !== 6) { setPinError('PIN состоит из 6 цифр.', true); return; }
   audio.ensure();
   startSession(pinTarget, v, $('pin-remember').checked);
 });
@@ -380,6 +421,7 @@ class Session {
       case 'hello':
         this.dev.name = m.name;
         this.audio = m.audio;
+        audio.setPhone(m.vol == null ? 1 : m.vol);   // phones before 1.2 send no volume: full
         if (DESKTOP) saveDevice(this.dev);
         $('player-name').textContent = m.name;
         document.title = `${m.name} — PhoneShare`;
@@ -394,6 +436,16 @@ class Session {
         break;
       case 'time':
         clock.sample(m);
+        break;
+      case 'volume':   // the phone's volume keys: the PC follows
+        audio.setPhone(m.v);
+        break;
+      case 'audio':   // the phone switched its sound on or off mid-stream
+        if (!!m.audio === !!this.audio) break;
+        this.audio = m.audio;
+        if (m.audio) audio.format(m.audio.rate, m.audio.ch);
+        updateUnmuteChip();
+        toast(m.audio ? 'Телефон снова передаёт звук' : 'Телефон выключил звук');
         break;
       case 'bye':
         this.ended = true;
@@ -719,7 +771,7 @@ class MsePlayer {
 
 const audio = {
   ctx: null, bus: null, gain: null, next: 0, target: 0.06, lastAdjust: 0, rate: 48000, ch: 2,
-  volume: store.get('volume', 0.8), muted: store.get('muted', false),
+  volume: store.get('volume', 0.8), muted: store.get('muted', false), phone: 1,
 
   /** Call from a click when possible: browsers only start sound after a user gesture. */
   ensure() {
@@ -742,7 +794,18 @@ const audio = {
 
   format(rate, ch) { this.rate = rate; this.ch = ch; this.next = 0; },
 
-  apply() { if (this.gain) this.gain.gain.value = this.muted ? 0 : this.volume; },
+  /** What you hear: this PC's volume times the phone's own (its volume keys), or nothing when muted here. */
+  apply() {
+    const g = this.muted ? 0 : this.volume * this.phone;
+    stats.gain = g;
+    if (this.gain) this.gain.gain.setTargetAtTime(g, this.ctx.currentTime, 0.04);   // glide: no click on a jump
+  },
+
+  setPhone(v) {
+    this.phone = Math.max(0, Math.min(1, Number(v) || 0));
+    stats.phoneVolume = this.phone;
+    this.apply();
+  },
 
   push(buf) {
     stats.audioChunks++;
@@ -780,6 +843,10 @@ function updateUnmuteChip() {
   stats.audioState = audio.ctx ? audio.ctx.state : 'none';
   const need = !!(session && session.audio) && (!audio.ctx || audio.ctx.state !== 'running');
   $('unmute').hidden = !need;
+  // the phone sends no sound (switched off there): the volume controls say so instead of looking broken
+  const silent = !!session && session.everAuthed && !session.audio;
+  $('player').classList.toggle('silent', silent);
+  $('mute').title = silent ? 'Телефон не передаёт звук' : 'Звук (M)';
 }
 
 $('unmute').addEventListener('click', () => audio.ensure());

@@ -13,12 +13,14 @@ import java.util.List;
 
 /**
  * Stands in for the phone on a desktop: the real StreamServer fed by ffmpeg test video (H.264 Annex B, like MediaCodec)
- * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop.
+ * and a 48 kHz stereo beep (PCM, like AudioPlaybackCapture). Type "quit" on stdin to stop, "volume 0.25" or
+ * "audio off|on" to act like the phone's volume keys and sound switch.
  *
  * java app.phoneshare.FakePhone [--pin 135790] [--port 8080] [--udp 47800] [--size 720x1280] [--rotate-every 0] [--name FakePhone] [--web web]
  */
 public final class FakePhone {
     static volatile boolean running = true;
+    static volatile boolean audioOn = true;   // "audio off" on stdin stops the beep like the phone's switch
     static final List<Process> procs = new ArrayList<>();
 
     public static void main(String[] a) throws Exception {
@@ -57,12 +59,19 @@ public final class FakePhone {
             t.start();
         }
 
-        // stdin "quit" or EOF (parent died) ends the run and the ffmpeg children with it
+        // stdin "quit" or EOF (parent died) ends the run and the ffmpeg children with it;
+        // "volume 0.25" and "audio off|on" act like the phone's volume keys and sound switch
         StringBuilder line = new StringBuilder();
         int c;
         while ((c = System.in.read()) >= 0) {
             if (c == '\n') {
-                if (line.toString().trim().equals("quit")) break;
+                String cmd = line.toString().trim();
+                if (cmd.equals("quit")) break;
+                if (cmd.startsWith("volume ")) server.setVolume(Float.parseFloat(cmd.substring(7)));
+                if (cmd.equals("audio off") || cmd.equals("audio on")) {
+                    audioOn = cmd.equals("audio on");
+                    server.setAudioFormat(audio && audioOn ? 48000 : 0, 2);
+                }
                 line.setLength(0);
             } else {
                 line.append((char) c);
@@ -159,7 +168,7 @@ public final class FakePhone {
                 int off = 0, n;
                 while (off < chunk.length && (n = in.read(chunk, off, chunk.length - off)) > 0) off += n;
                 if (off < chunk.length) break;
-                server.sendAudio(chunk, 0, chunk.length, System.nanoTime() / 1000);
+                if (audioOn) server.sendAudio(chunk, 0, chunk.length, System.nanoTime() / 1000);
             }
         } catch (IOException ignored) {
         }

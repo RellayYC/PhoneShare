@@ -23,7 +23,9 @@
     <string name="quality_hint">≈ %1$s Мбит/с. Если сеть не справляется, поток снизится сам и вернётся, когда она разгрузится.</string>
     <string name="quality_live">≈ %1$s Мбит/с. Меняется сразу: картинка на ПК обновится за секунду.</string>
     <string name="audio">Передавать звук</string>
-    <string name="audio_hint">Звук продолжает играть и на телефоне. Звонки и приложения, запретившие запись, Android не передаёт.</string>
+    <string name="audio_both">Телефон и ПК</string>
+    <string name="audio_pc">Только ПК</string>
+    <string name="audio_hint">Громкость на ПК повторяет громкость телефона. В режиме «Только ПК» телефон молчит, а его кнопки громкости меняют звук на ПК. Звонки и приложения, запретившие запись, Android не передаёт.</string>
     <string name="audio_denied">Нет разрешения на запись звука, поэтому идёт только картинка. Его можно выдать в настройках приложения.</string>
     <string name="viewers_label">Сейчас смотрят</string>
     <string name="viewers_none">Пока никто не смотрит.</string>
@@ -37,5 +39,12 @@
     <string name="update_progress">Скачиваю версию %1$s: %2$d %%</string>
     <string name="update_installing">Устанавливаю версию %1$s…</string>
     <string name="update_failed">Обновление не установилось: %1$s</string>
+    <string name="updates_label">Обновления</string>
+    <string name="version">PhoneShare %1$s</string>
+    <string name="update_check">Проверить</string>
+    <string name="update_checking">Проверяю…</string>
+    <string name="update_latest">Установлена последняя версия.</string>
+    <string name="update_found">Доступна версия %1$s: кнопка «Обновить» вверху.</string>
+    <string name="update_check_failed">Не получилось проверить: нет связи с GitHub.</string>
     <string name="update_allow">Разреши PhoneShare устанавливать приложения, вернись и нажми «Обновить» ещё раз.</string>
 </resources>

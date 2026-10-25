@@ -6,14 +6,18 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.hardware.display.DisplayManager;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFormat;
+import android.media.AudioManager;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
 import android.media.projection.MediaProjection;
@@ -52,6 +56,9 @@ public final class CaptureService extends Service {
     private ScreenEncoder encoder;
     private AudioRecord record;
     private volatile boolean audioRunning;
+    private AudioManager am;
+    private int level;   // the phone's media volume step the PC follows; kept while "only PC" mutes the phone
+    private boolean listening;
     private WifiManager.WifiLock wifiLock;
     private WifiManager.MulticastLock multicastLock;
 
@@ -176,6 +183,13 @@ public final class CaptureService extends Service {
         multicastLock = wifi.createMulticastLock("PhoneShare");   // receive discovery broadcasts while the screen is off
         multicastLock.acquire();
 
+        am = getSystemService(AudioManager.class);
+        level = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+        IntentFilter volumeChanged = new IntentFilter(VOLUME_CHANGED);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(volumeKeys, volumeChanged, RECEIVER_NOT_EXPORTED);   // a system broadcast
+        else registerReceiver(volumeKeys, volumeChanged);
+        listening = true;
+
         boolean wantAudio = prefs(this).getBoolean("audio", true)
                 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
         server = new StreamServer(deviceName(), pin(this), this::asset);
@@ -186,6 +200,7 @@ public final class CaptureService extends Service {
         });
         audioOn = wantAudio && startAudio();
         server.setAudioFormat(audioOn ? 48000 : 0, 2);
+        applySpeaker();
         port = server.start(StreamServer.HTTP_PORT, StreamServer.DISCOVERY_PORT);
 
         int[] v = video(this);
@@ -203,17 +218,13 @@ public final class CaptureService extends Service {
     }
 
     private void cleanup() {
-        audioRunning = false;
+        if (listening) unregisterReceiver(volumeKeys);
+        listening = false;
+        stopAudio();
+        audioOn = false;
+        applySpeaker();   // the phone gets its sound back
         if (encoder != null) encoder.stop();
         encoder = null;
-        if (record != null) {
-            try {
-                record.stop();
-            } catch (IllegalStateException ignored) {
-            }
-            record.release();
-            record = null;
-        }
         if (server != null) server.stop();
         server = null;
         if (projection != null) projection.stop();
@@ -229,7 +240,91 @@ public final class CaptureService extends Service {
         if (r != null) main.post(r);
     }
 
-    // ---- audio: playback capture keeps the sound playing on the phone, unlike scrcpy's REMOTE_SUBMIX ----
+    // ---- sound: on or off, on the phone too or only on the PC, and the PC follows the phone's volume ----
+    // Playback capture only copies the sound (unlike scrcpy's REMOTE_SUBMIX, which a shell may use) and copies it at full
+    // level whatever the phone's volume. So "only PC" mutes the phone's media stream while sound streams, and the
+    // phone's volume step travels to the viewers, which play at that level.
+
+    static final String VOLUME_CHANGED = "android.media.VOLUME_CHANGED_ACTION";
+    private static final String EXTRA_STREAM = "android.media.EXTRA_VOLUME_STREAM_TYPE", EXTRA_VALUE = "android.media.EXTRA_VOLUME_STREAM_VALUE";
+
+    /** Turns sound on or off in a running stream; viewers hear the change at once, the picture goes on. */
+    void setAudio(boolean on) {
+        if (server == null) return;
+        if (on && !audioOn) {
+            audioOn = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED && startAudio();
+        } else if (!on && audioOn) {
+            stopAudio();
+            audioOn = false;
+        }
+        server.setAudioFormat(audioOn ? 48000 : 0, 2);
+        applySpeaker();
+        changed();
+    }
+
+    /** "Only PC": the phone's media stream stays muted while its sound streams; leaving that state gives it back. */
+    void applySpeaker() {
+        if (am == null) return;
+        boolean silence = audioOn && prefs(this).getBoolean("audio_pc_only", false);
+        boolean ours = prefs(this).getBoolean("muted_by_app", false);
+        if (silence && !ours && !am.isStreamMute(AudioManager.STREAM_MUSIC)) {
+            level = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+            prefs(this).edit().putBoolean("muted_by_app", true).apply();
+            am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+        } else if (!silence && ours) {
+            unmute(this);
+        }
+        sendVolume();
+    }
+
+    /** Gives the phone its sound back if this app muted it (also after a crash, from MainActivity). */
+    static void unmute(Context c) {
+        prefs(c).edit().putBoolean("muted_by_app", false).apply();
+        c.getSystemService(AudioManager.class).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+    }
+
+    /**
+     * Volume keys. The broadcast carries the new step even while the stream is muted (a key down keeps the mute, a key up
+     * lifts it), so "only PC" follows both directions; a key that lifted our mute is answered by muting again.
+     */
+    private final BroadcastReceiver volumeKeys = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            if (am == null || i.getIntExtra(EXTRA_STREAM, -1) != AudioManager.STREAM_MUSIC) return;
+            int step = i.getIntExtra(EXTRA_VALUE, -1);
+            if (step >= 0) level = step;
+            boolean ours = prefs(c).getBoolean("muted_by_app", false);
+            if (ours && !am.isStreamMute(AudioManager.STREAM_MUSIC)) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+            sendVolume();
+        }
+    };
+
+    private void sendVolume() {
+        StreamServer s = server;
+        if (s == null || am == null) return;
+        boolean ours = prefs(this).getBoolean("muted_by_app", false);
+        int step = !ours && am.isStreamMute(AudioManager.STREAM_MUSIC) ? 0 : level;   // muted by the person: silence on the PC too
+        float gain = 0;
+        if (step > 0) {
+            try {   // the phone's own loudness curve for its speaker
+                gain = StreamServer.gain(am.getStreamVolumeDb(AudioManager.STREAM_MUSIC, step, AudioDeviceInfo.TYPE_BUILTIN_SPEAKER));
+            } catch (IllegalArgumentException e) {
+                gain = (float) step / am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            }
+        }
+        s.setVolume(gain);
+    }
+
+    private void stopAudio() {
+        audioRunning = false;
+        AudioRecord r = record;
+        record = null;
+        if (r == null) return;
+        try {
+            r.stop();   // unblocks the reader thread, which then sees audioRunning off
+        } catch (IllegalStateException ignored) {
+        }
+        r.release();
+    }
 
     private boolean startAudio() {
         try {

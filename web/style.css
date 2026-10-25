@@ -101,6 +101,7 @@ body.desktop .browser-only { display: none; }
 .secondary { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
 .secondary:hover { background: var(--raised); }
 .ghost { background: transparent; color: var(--ink-2); padding: 0 12px; }
+.ghost .icon, .secondary .icon { stroke-width: 2; }   /* beside semibold text the icon carries the same weight */
 .ghost:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); }
 .primary:active, .secondary:active, .ghost:active, .icon-btn:active { scale: 0.96; }
 .primary:disabled { opacity: 0.5; cursor: default; scale: 1; }
@@ -254,6 +255,15 @@ body.scanning #rescan .icon { animation: spin 900ms linear infinite; }
 .steps li + li { margin-top: 4px; }
 .steps[hidden] { display: none; }
 
+/* version and the update check, quiet at the bottom of the list */
+.foot { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--ink-2); font-size: 14px; }
+.version { font-variant-numeric: tabular-nums; margin-right: 4px; }
+#update-check { min-height: 40px; padding: 0 10px; font-size: 14px; }
+#update-check .icon { width: 16px; height: 16px; }
+#update-check:disabled { cursor: default; opacity: 0.7; }
+body.checking #update-check .icon { animation: spin 900ms linear infinite; }
+.update-status { font-variant-numeric: tabular-nums; }
+
 @media (max-width: 760px) {
   .help-body { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
   .miracast { grid-template-columns: minmax(0, 1fr); justify-items: start; padding-left: 28px; }
@@ -386,7 +396,8 @@ body.idle .player { cursor: none; }
 .rec-btn.on .fill-on { fill: currentColor; }
 #ontop[aria-pressed="true"] { color: #FFB61A; }
 #ontop[aria-pressed="true"] .fill-on { fill: currentColor; }
-.volume { display: flex; align-items: center; }
+.volume { display: flex; align-items: center; transition-property: opacity; transition-duration: 200ms; }
+.player.silent .volume { opacity: 0.4; }   /* the phone's sound is off: still usable, visibly idle */
 .volume input { width: 92px; margin: 0 8px 0 2px; accent-color: #EDEFF3; }
 
 .swap { position: absolute; transition-property: opacity, scale, filter; transition-duration: 200ms; transition-timing-function: var(--ease); }
@@ -429,6 +440,23 @@ body.idle .player { cursor: none; }
 .toast.show { opacity: 1; translate: -50% 0; }
 
 body[data-screen="loading"] { visibility: hidden; }
+
+/* ---- motion: short, answering what changed; the reduced-motion rule below turns all of it off ---- */
+@keyframes rise { from { opacity: 0; translate: 0 8px; } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; scale: 0.96; } }
+@keyframes shake {
+  20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; }
+}
+body[data-screen="home"] #home, body[data-screen="pin"] #pin { animation: rise 280ms var(--ease) both; }
+body[data-screen="player"] #player { animation: fade 200ms var(--ease) both; }
+.phone-item.enter { animation: rise 320ms var(--ease) both; animation-delay: calc(var(--i, 0) * 60ms); }   /* new cards only */
+.help[open] .help-body { animation: fade 200ms var(--ease); }
+.update:not([hidden]) { animation: rise 260ms var(--ease); }
+.pin-field.shake { animation: shake 320ms var(--ease); }
+.overlay:not([hidden]) { animation: fade 180ms var(--ease); }
+.overlay:not([hidden]) .overlay-box { animation: pop 220ms var(--ease); }
+.chip:not([hidden]) { animation: pop 220ms var(--ease); }
 
 @media (max-width: 560px) {
   .stats div { padding: 3px 6px; }

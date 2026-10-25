@@ -105,6 +105,21 @@ async function runWebCodecs() {
   check(true, 'audio plays');
   const lat = await a.waitFor(`__ps.latencyMs != null && __ps.latencyMs`, 10000, 'latency');
   check(lat > 0 && lat < 1000, `latency measured: ${Math.round(lat)} ms`);
+
+  // the phone's volume keys and sound switch reach the player without a reconnect
+  const own = await a.eval(`__ps.gain`);
+  fake.send('volume 0.25');
+  await a.waitFor(`__ps.phoneVolume === 0.25 && Math.abs(__ps.gain - ${own} * 0.25) < 1e-6`, 3000, 'phone volume');
+  check(true, `phone volume 0.25 scales the player: gain ${own} -> ${await a.eval('__ps.gain')}`);
+  fake.send('audio off');
+  await a.waitFor(`document.getElementById('toast').textContent === 'Телефон выключил звук'`, 3000, 'sound off notice');
+  const quiet = await ps(a, 'audioChunks');
+  await sleep(600);
+  check(await ps(a, 'audioChunks') - quiet <= 2, 'sound switched off mid-stream: no more audio, the picture goes on');
+  check(await ps(a, 'state') === 'live' && await ps(a, 'reconnects') === 0, 'no reconnect for a sound change');
+  fake.send('audio on');
+  await a.waitFor(`__ps.audioChunks > ${quiet + 10}`, 3000, 'sound back');
+  check(true, 'sound switched on again mid-stream');
   check((await ps(a, 'errors')).length === 0, 'no player errors');
   console.log('E2E WEBCODECS OK');
 }
@@ -117,7 +132,8 @@ function fakeHost() { return `
     window.chrome.webview = {
       postMessage(m) {
         if (m === 'discover') send({ t: 'devices', list: window.__fakeDevices || [] });
-        if (m === 'hello') send({ t: 'host', name: 'TESTPC', nets: [{ name: 'Home', ip: '192.168.1.20' }] });
+        if (m === 'hello') send({ t: 'host', name: 'TESTPC', nets: [{ name: 'Home', ip: '192.168.1.20' }], version: '1.2.0' });
+        if (m === 'update?') send({ t: 'update', latest: true });
         if (m === 'miracast?') send({ t: 'miracast', installed: false });
       },
       addEventListener(t, f) { if (t === 'message') listeners.push(f); },
@@ -147,6 +163,22 @@ async function runUi() {
   const net = await d.eval(`document.getElementById('pc-net').textContent`);
   check(net === 'Этот ПК: сеть «Home», адрес 192.168.1.20.', `help names this PC's network: ${net}`);
   check(await d.eval(`document.getElementById('add-host').offsetParent !== null`), 'manual address field is in the help');
+
+  // a typed address is kept: in the field after a restart and as a card on the shelf
+  await d.eval(`document.getElementById('add-host').value = '198.51.100.7:8080'; document.getElementById('add-form').requestSubmit(); true`);
+  await d.waitFor(`__ps.screen === 'pin' && document.getElementById('pin-device').textContent === '198.51.100.7'`, 3000, 'typed address asks for its PIN');
+  await d.eval(`document.getElementById('pin-back').click(); true`);
+  await d.waitFor(`__ps.screen === 'home' && [...document.querySelectorAll('.phone-addr')].some((e) => e.textContent === '198.51.100.7:8080')`, 3000, 'typed phone on the shelf');
+  await d.send('Page.reload');
+  await d.waitFor(`window.__ps && __ps.screen === 'home'`, 10000, 'home after a restart');
+  check(await d.eval(`document.getElementById('add-host').value`) === '198.51.100.7:8080', 'typed address is still in the field after a restart');
+  check(await d.eval(`[...document.querySelectorAll('.phone-addr')].some((e) => e.textContent === '198.51.100.7:8080')`), 'typed phone stays on the shelf after a restart');
+
+  // version and the update check button
+  await d.waitFor(`document.getElementById('version').textContent === 'PhoneShare 1.2.0'`, 3000, 'version in the footer');
+  await d.eval(`document.getElementById('update-check').click(); true`);
+  await d.waitFor(`document.getElementById('update-status').textContent === 'Установлена последняя версия'`, 3000, 'update check result');
+  check(await d.eval(`!document.getElementById('update-check').disabled`), 'update check button answers and is ready again');
   await sleep(300);
   await snap(d, 'desktop-home-empty');
   await named(d, 'home (empty)');

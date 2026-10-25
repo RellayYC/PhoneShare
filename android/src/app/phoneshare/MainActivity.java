@@ -8,6 +8,8 @@ import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.TransitionDrawable;
 import android.graphics.Typeface;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
@@ -21,6 +23,8 @@ import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -40,9 +44,9 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final int REQ_PROJECTION = 1, REQ_PERMISSIONS = 2;
+    private static final int REQ_PROJECTION = 1, REQ_PERMISSIONS = 2, REQ_AUDIO = 3;
     private static final String ACTION_INSTALL = "app.phoneshare.INSTALL";
-    private static final long UPDATE_EVERY = 6 * 3600_000L;
+    private static final long UPDATE_EVERY = 3600_000L;   // while the app is open, and when it opens after that long
     private static long checkedAt = -UPDATE_EVERY;   // per process: reopening the app does not ask GitHub again
 
     private TextView statusTitle, statusText, error, url, howHint, viewers, qualityHint, audioHint;
@@ -57,6 +61,14 @@ public final class MainActivity extends Activity {
     private SeekBar sizeBar, fpsBar;
     private int[] sizes, fpsStops;   // the stops this phone's screen can show
     private boolean dragging;
+    private Switch audio;
+    private RadioGroup where;
+    private TextView version, updateStatus;
+    private Button updateCheck;
+    private boolean checking;
+    private TransitionDrawable statusBg;
+    private Boolean shownOn;     // what the status card shows, to fade only on a change
+    private String shownPin = "";
     private final Runnable render = this::render;
 
     @Override protected void onCreate(Bundle state) {
@@ -127,42 +139,98 @@ public final class MainActivity extends Activity {
         sizeBar = stops(R.id.size, sizes, video[0]);
         fpsBar = stops(R.id.fps, fpsStops, video[1]);
 
-        Switch audio = findViewById(R.id.audio);
+        // sound on or off, and where it plays: both reach a running stream at once
+        audio = findViewById(R.id.audio);
         audio.setChecked(CaptureService.prefs(this).getBoolean("audio", true));
         audio.setOnCheckedChangeListener((b, on) -> {
             CaptureService.prefs(this).edit().putBoolean("audio", on).apply();
+            CaptureService s = CaptureService.instance;
+            if (s != null && on && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[] {Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);
+            } else if (s != null) {
+                s.setAudio(on);
+            }
             render();
         });
+        where = findViewById(R.id.audio_where);
+        where.check(CaptureService.prefs(this).getBoolean("audio_pc_only", false) ? R.id.audio_pc : R.id.audio_both);
+        where.setOnCheckedChangeListener((g, id) -> {
+            CaptureService.prefs(this).edit().putBoolean("audio_pc_only", id == R.id.audio_pc).apply();
+            CaptureService s = CaptureService.instance;
+            if (s != null) s.applySpeaker();
+            render();
+        });
+        // the app died while "only PC" had the phone muted: give the phone its sound back
+        if (CaptureService.instance == null && CaptureService.prefs(this).getBoolean("muted_by_app", false)) CaptureService.unmute(this);
+
+        version = findViewById(R.id.version);
+        updateStatus = findViewById(R.id.update_status);
+        updateCheck = findViewById(R.id.update_check);
+        try {
+            version.setText(getString(R.string.version, getPackageManager().getPackageInfo(getPackageName(), 0).versionName));
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        updateCheck.setOnClickListener(v -> checkUpdate(true));
     }
 
     @Override protected void onResume() {
         super.onResume();
         CaptureService.onStateChanged = render;
         render();   // the network may have changed while we were away
-        if (!updating && SystemClock.elapsedRealtime() - checkedAt > UPDATE_EVERY) checkUpdate();
+        if (!updating && SystemClock.elapsedRealtime() - checkedAt > UPDATE_EVERY) checkUpdate(false);
+        update.postDelayed(hourly, UPDATE_EVERY);
     }
+
+    private final Runnable hourly = new Runnable() {
+        @Override public void run() {
+            if (!updating) checkUpdate(false);
+            update.postDelayed(this, UPDATE_EVERY);
+        }
+    };
 
     // ---- updates: Updater checks GitHub, PackageInstaller installs; Android asks the user to confirm unless it may skip that
 
-    private void checkUpdate() {
+    /** Asks GitHub for a newer signed release; the answer of a check the person asked for is shown, an automatic one stays quiet. */
+    private void checkUpdate(boolean manual) {
         long current;
         try {
             current = getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
         } catch (PackageManager.NameNotFoundException e) {
             return;
         }
+        if (checking) return;
+        checking = true;
+        if (manual) {
+            updateCheck.setEnabled(false);
+            updateStatus.setVisibility(View.VISIBLE);
+            updateStatus.setText(R.string.update_checking);
+        }
         new Thread(() -> {
+            Updater.Release found = null;
+            boolean ok = true;
             try {
-                Updater.Release r = Updater.check(Updater.URL, current);
+                found = Updater.check(Updater.URL, current);
                 checkedAt = SystemClock.elapsedRealtime();
-                runOnUiThread(() -> {
-                    offer = r;
-                    showUpdate(r == null ? null : getString(R.string.update_available, r.version), R.string.update);
-                });
-            } catch (IOException | RuntimeException ignored) {
-                // offline or a bad release: stay quiet and try again next time, the stream does not depend on it
+            } catch (IOException | RuntimeException e) {
+                ok = false;   // offline or a bad release: the stream does not depend on it
             }
+            Updater.Release r = found;
+            boolean answered = ok;
+            runOnUiThread(() -> checked(r, answered, manual));
         }, "update-check").start();
+    }
+
+    private void checked(Updater.Release r, boolean ok, boolean manual) {
+        checking = false;
+        updateCheck.setEnabled(true);
+        if (ok && !updating) {
+            offer = r;
+            showUpdate(r == null ? null : getString(R.string.update_available, r.version), R.string.update);
+        }
+        if (!manual) return;
+        updateStatus.setText(!ok ? getString(R.string.update_check_failed)
+                : r == null ? getString(R.string.update_latest) : getString(R.string.update_found, r.version));
+        if (ok && r != null) ((ScrollView) findViewById(R.id.root)).smoothScrollTo(0, 0);   // the offer is in the card at the top
     }
 
     private void showUpdate(String text, int button) {
@@ -237,6 +305,7 @@ public final class MainActivity extends Activity {
 
     @Override protected void onPause() {
         super.onPause();
+        update.removeCallbacks(hourly);
         if (CaptureService.onStateChanged == render) CaptureService.onStateChanged = null;
     }
 
@@ -254,6 +323,11 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         if (code == REQ_PERMISSIONS) askProjection();   // without RECORD_AUDIO the stream is video only
+        if (code == REQ_AUDIO) {   // sound switched on mid-stream: without the permission it stays off, and the hint says so
+            CaptureService s = CaptureService.instance;
+            if (s != null) s.setAudio(true);
+            render();
+        }
     }
 
     private void askProjection() {
@@ -279,7 +353,17 @@ public final class MainActivity extends Activity {
 
         statusTitle.setText(on ? R.string.status_on : R.string.status_off);
         statusDot.setBackgroundResource(on ? R.drawable.dot_live : R.drawable.dot);
-        statusCard.setBackgroundResource(on ? R.drawable.bg_card_live : R.drawable.bg_card);   // the card lights up like the lamp
+        if (statusBg == null) {   // the card lights up like the lamp, fading over 250 ms
+            statusBg = new TransitionDrawable(new Drawable[] {getDrawable(R.drawable.bg_card), getDrawable(R.drawable.bg_card_live)});
+            statusBg.setCrossFadeEnabled(true);
+            statusCard.setBackground(statusBg);
+        }
+        if (shownOn == null || shownOn != on) {
+            int ms = shownOn == null ? 0 : 250;   // no fade when the screen opens
+            if (on) statusBg.startTransition(ms);
+            else if (shownOn != null) statusBg.reverseTransition(ms);
+            shownOn = on;
+        }
         toggle.setText(on ? R.string.stop : R.string.start);
         toggle.setBackgroundResource(on ? R.drawable.bg_secondary : R.drawable.bg_primary);
         toggle.setTextColor(getColor(on ? R.color.ink : R.color.on_lamp));
@@ -304,6 +388,13 @@ public final class MainActivity extends Activity {
 
         String pin = CaptureService.pin(this);
         for (int i = 0; i < 6; i++) cells[i].setText(String.valueOf(pin.charAt(i)));
+        if (!shownPin.isEmpty() && !pin.equals(shownPin)) {   // a new PIN: the digits fade in, left to right
+            for (int i = 0; i < 6; i++) {
+                cells[i].setAlpha(0);
+                cells[i].animate().alpha(1).setStartDelay(i * 30L).setDuration(160).start();
+            }
+        }
+        shownPin = pin;
         findViewById(R.id.pin_cells).setContentDescription("PIN " + pin.replace("", " ").trim());
 
         List<String> v = on ? s.viewers : Collections.<String>emptyList();
@@ -312,8 +403,11 @@ public final class MainActivity extends Activity {
         else statusText.setText(R.string.status_off_text);
 
         renderQuality();
-        boolean audioMissing = on && !s.audioOn && CaptureService.prefs(this).getBoolean("audio", true);
+        boolean wantAudio = CaptureService.prefs(this).getBoolean("audio", true);
+        boolean audioMissing = on && !s.audioOn && wantAudio;
         audioHint.setText(audioMissing ? R.string.audio_denied : R.string.audio_hint);
+        where.setAlpha(wantAudio ? 1 : 0.5f);
+        for (int i = 0; i < where.getChildCount(); i++) where.getChildAt(i).setEnabled(wantAudio);
     }
 
     /** A stepped slider over values; a tick on each stop, the choice saved and applied when the finger lifts. */

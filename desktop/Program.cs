@@ -140,7 +140,7 @@ namespace PhoneShare
         int discovering;
         Updater.Release offer;   // a checked newer release, kept for the "update" click
         int updating;
-        readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = 6 * 3600 * 1000 };
+        readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = 3600 * 1000 };
 
         public MainForm()
         {
@@ -258,6 +258,7 @@ namespace PhoneShare
                 Hello();
             }
             else if (m == "update") ApplyUpdate();
+            else if (m == "update?") CheckUpdate();   // the page's "check for updates" button
             else if (m == "discover") Discover();
             else if (m == "miracast?" || m == "miracast") Miracast(open: m == "miracast");
             else if (m == "ontop:1" || m == "ontop:0") TopMost = m == "ontop:1";
@@ -279,7 +280,7 @@ namespace PhoneShare
 
         // ---------------------------------------------------------------- updates (Updater.cs)
 
-        /// <summary>The page is up (again, after a reload): report how the last update went, look for a new one now and every 6 h.</summary>
+        /// <summary>The page is up (again, after a reload): report how the last update went, look for a new one now and every hour.</summary>
         void Hello()
         {
             string a = Program.Args.FirstOrDefault();
@@ -312,7 +313,7 @@ namespace PhoneShare
                 catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is FormatException
                     || ex is KeyNotFoundException || ex is InvalidCastException || ex is ArgumentException || ex is CryptographicException)
                 {
-                    Post(new Dictionary<string, object> { ["t"] = "update", ["checkError"] = ex.Message });   // silent on the page, kept in its stats
+                    Post(new Dictionary<string, object> { ["t"] = "update", ["checkError"] = ex.Message });   // the page shows it only after its button
                 }
             });
         }

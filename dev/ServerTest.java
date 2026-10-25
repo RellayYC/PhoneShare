@@ -120,6 +120,17 @@ public final class ServerTest {
         Msg time = readText(pre, "\"t\":\"time\"");
         check(time.text().contains("\"c\":123.5") && time.text().contains("\"s\":"), "time reply");
 
+        // Sound changes reach a viewer that is already watching
+        check(hello.contains("\"vol\":1.000"), "hello carries the phone volume");
+        srv.setVolume(0.25f);
+        check(readText(pre, "\"t\":\"volume\"").text().contains("\"v\":0.250"), "phone volume change sent live");
+        srv.setAudioFormat(0, 2);
+        check(readText(pre, "\"t\":\"audio\"").text().contains("\"audio\":null"), "sound off sent live");
+        srv.setAudioFormat(48000, 2);
+        check(readText(pre, "\"t\":\"audio\"").text().contains("\"rate\":48000"), "sound on sent live");
+        check(StreamServer.gain(0) == 1 && Math.abs(StreamServer.gain(-20) - 0.1f) < 1e-4 && StreamServer.gain(Float.NEGATIVE_INFINITY) == 0,
+                "volume steps in dB become gain: 0 dB = 1, -20 dB = 0.1, muted = 0");
+
         // A viewer that stops reading is reset to the next keyframe instead of piling up latency
         Ws slow = new Ws(port, 4096);
         slow.sendText("{\"t\":\"auth\",\"pin\":\"" + PIN + "\",\"name\":\"slow\"}");
