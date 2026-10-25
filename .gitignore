@@ -1,5 +1,6 @@
 # tools, builds and local notes stay on this PC
 .claude/
+.claude-terminal
 .specify/
 .unlazy/
 .unlazy-hook-state.json
