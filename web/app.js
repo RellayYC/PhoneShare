@@ -36,6 +36,7 @@ function show(screen) {
   document.body.dataset.screen = screen;
   document.body.classList.remove('idle');
   if (DESKTOP) host.postMessage('screen:' + screen);   // the window paints its title bar to match
+  if (screen === 'player') requestAnimationFrame(() => placePill(false));
 }
 
 function el(tag, cls, text) {
@@ -151,7 +152,9 @@ function phoneCard(d) {
       store.set('devices', saved);
       store.set('pins', pins);
       try { localStorage.removeItem('ps.snap.' + devKey(d)); } catch { /* storage blocked */ }
-      renderDevices();
+      shown.delete(devKey(d));
+      li.classList.add('leaving');   // fades and shrinks a little, then the shelf closes the gap
+      setTimeout(renderDevices, 180);
     });
     li.append(forget);
   }
@@ -215,6 +218,7 @@ function renderUpdate(m) {
     document.body.classList.remove('checking');
     $('update-status').textContent = m.checkError ? 'Не получилось проверить: нет связи с GitHub.'
       : m.latest ? 'Установлена последняя версия' : '';
+    replay($('update-status'), 'fresh');
   }
   if (!m.version) return;
   const busy = m.progress != null && !m.error;
@@ -222,6 +226,8 @@ function renderUpdate(m) {
     : busy ? `Скачиваю версию ${m.version}: ${m.progress} %` : `Доступна версия ${m.version}`;
   $('update-go').textContent = m.error ? 'Повторить' : 'Обновить';
   $('update-go').disabled = busy;
+  $('update-bar').hidden = !busy;
+  if (busy) $('update-bar').style.setProperty('--p', `${m.progress}%`);
   $('update').hidden = false;
 }
 
@@ -329,12 +335,22 @@ function setPinError(text, shake) {
   }
 }
 
+let typedLength = 0;
 function renderCells() {
   const v = $('pin-input').value;
   document.querySelectorAll('.cells span').forEach((c, i) => {
     c.textContent = v[i] || '';
     c.classList.toggle('cur', i === Math.min(v.length, 5) && v.length < 6);
+    if (i === v.length - 1 && v.length > typedLength) replay(c, 'typed');   // the digit just typed settles in
   });
+  typedLength = v.length;
+}
+
+/** Restarts a one-shot CSS animation class. */
+function replay(e, cls) {
+  e.classList.remove(cls);
+  void e.offsetWidth;
+  e.classList.add(cls);
 }
 
 $('pin-input').addEventListener('input', () => {
@@ -859,13 +875,25 @@ function applyNative() {
   $('player').style.setProperty('--native-w', `${stats.width / r}px`);
   $('player').style.setProperty('--native-h', `${stats.height / r}px`);
 }
-window.addEventListener('resize', applyNative);   // also fires when the window moves to a screen with another scale
+window.addEventListener('resize', () => { applyNative(); placePill(false); });   // also fires on a move to a screen with another scale
 
 function applyFit(fit) {
   $('player').dataset.fit = fit;
   applyNative();
   document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.fit === fit)));
+  placePill(true);
   store.set('fit', fit);
+}
+
+/** The light pill under the chosen scale slides to the new choice. */
+function placePill(slide) {
+  const b = document.querySelector('.seg button[aria-checked="true"]');
+  const pill = document.querySelector('.seg-pill');
+  if (!b || !b.offsetWidth) return;   // the player is hidden: placed when it shows
+  pill.classList.toggle('instant', !slide || !pill.classList.contains('placed'));
+  pill.style.setProperty('--x', `${b.offsetLeft}px`);
+  pill.style.setProperty('--w', `${b.offsetWidth}px`);
+  pill.classList.add('placed');
 }
 document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => applyFit(b.dataset.fit)));
 

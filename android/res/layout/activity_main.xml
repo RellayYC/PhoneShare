@@ -56,6 +56,19 @@
                 android:textColor="@color/ink"
                 android:textSize="15sp" />
 
+            <!-- the download, shown while it runs -->
+            <ProgressBar
+                android:id="@+id/update_bar"
+                style="@android:style/Widget.Material.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:importantForAccessibility="no"
+                android:max="100"
+                android:progressBackgroundTint="@color/field_line"
+                android:progressTint="@color/lamp"
+                android:visibility="gone" />
+
             <Button
                 android:id="@+id/update_go"
                 style="@style/Button.Primary"

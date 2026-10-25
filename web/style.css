@@ -148,6 +148,13 @@ body.scanning #rescan .icon { animation: spin 900ms linear infinite; }
 }
 .update[hidden] { display: none; }
 .update-text { font-variant-numeric: tabular-nums; }
+.update { position: relative; overflow: hidden; }
+.update-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: color-mix(in oklab, var(--lamp) 25%, transparent); }
+.update-bar[hidden] { display: none; }
+.update-bar span {
+  display: block; height: 100%; width: var(--p, 0%); background: var(--lamp);
+  transition-property: width; transition-duration: 300ms; transition-timing-function: var(--ease);
+}
 
 .shelf-wrap h1 { margin-bottom: 24px; font: 600 34px/1.1 var(--font-din); font-stretch: 87.5%; }
 .shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 176px); gap: 36px 28px; }
@@ -377,14 +384,25 @@ body.idle .player { cursor: none; }
 .stats dd.warn { color: #FFB61A; }
 
 .hud-bottom > .seg, .hud-bottom > .tools { border-radius: 16px; padding: 4px; }
-.seg { display: flex; gap: 2px; }
+.seg { position: relative; display: flex; gap: 2px; }
+.seg-pill {   /* one light pill under the chosen scale; slides between choices */
+  position: absolute; top: 4px; bottom: 4px; left: 0; width: var(--w, 0); translate: var(--x, 0) 0;
+  border-radius: 12px; background: #EDEFF3; opacity: 0;
+  transition-property: translate, width, opacity;
+  transition-duration: 240ms;
+  transition-timing-function: var(--ease);
+}
+.seg-pill.placed { opacity: 1; }
+.seg-pill.instant { transition-duration: 0ms; }
 .seg button {
   min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: transparent; color: #C9CFDA; font-weight: 600;
   transition-property: background-color, color;
   transition-duration: 150ms;
 }
 .seg button:hover { color: #fff; background: var(--hud-hover); }
-.seg button[aria-checked="true"] { background: #EDEFF3; color: #141821; }
+.seg button { position: relative; z-index: 1; }
+.seg button[aria-checked="true"] { color: #141821; background: transparent; }
+.seg:not(:has(.seg-pill.placed)) button[aria-checked="true"] { background: #EDEFF3; }   /* before the pill is placed */
 .tools { display: flex; align-items: center; gap: 2px; }
 .tools .icon-btn { width: 40px; height: 40px; }
 .tools .icon-btn:hover { background: var(--hud-hover); }
@@ -445,6 +463,12 @@ body[data-screen="loading"] { visibility: hidden; }
 @keyframes rise { from { opacity: 0; translate: 0 8px; } }
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; scale: 0.96; } }
+@keyframes grow { from { scale: 0 1; } }
+@keyframes typed { from { scale: 0.9; opacity: 0.4; } }
+@keyframes onair {
+  from { box-shadow: 0 0 0 0 rgb(255 182 26 / 0.7), 0 0 0 rgb(255 182 26 / 0); }
+  60% { box-shadow: 0 0 0 9px rgb(255 182 26 / 0), 0 0 12px rgb(255 182 26 / 0.6); }
+}
 @keyframes shake {
   20% { translate: -6px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; }
 }
@@ -457,6 +481,12 @@ body[data-screen="player"] #player { animation: fade 200ms var(--ease) both; }
 .overlay:not([hidden]) { animation: fade 180ms var(--ease); }
 .overlay:not([hidden]) .overlay-box { animation: pop 220ms var(--ease); }
 .chip:not([hidden]) { animation: pop 220ms var(--ease); }
+.rec-bar:not([hidden]) { transform-origin: left; animation: grow 400ms var(--ease); }   /* the take starts: the red bar runs across */
+.player.live .lamp { animation: onair 800ms var(--ease); }   /* on air: the lamp flares once */
+.cells span.typed { animation: typed 140ms var(--ease); }
+.phone-item.leaving { opacity: 0; scale: 0.94; transition-property: opacity, scale; transition-duration: 180ms; transition-timing-function: var(--ease); }
+.steps:not([hidden]) { animation: rise 260ms var(--ease); }
+.update-status.fresh { animation: fade 200ms var(--ease); }
 
 @media (max-width: 560px) {
   .stats div { padding: 3px 6px; }

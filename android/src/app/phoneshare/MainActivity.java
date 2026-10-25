@@ -1,6 +1,10 @@
 package app.phoneshare;
 
 import android.Manifest;
+import android.animation.LayoutTransition;
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.ClipData;
@@ -21,14 +25,16 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.PathInterpolator;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -69,6 +75,9 @@ public final class MainActivity extends Activity {
     private TransitionDrawable statusBg;
     private Boolean shownOn;     // what the status card shows, to fade only on a change
     private String shownPin = "";
+    private ProgressBar updateBar;
+    private ObjectAnimator onAir;   // the status dot breathing while the phone is on air
+    private static final PathInterpolator EASE = new PathInterpolator(0.2f, 0, 0, 1);   // the page's ease
     private final Runnable render = this::render;
 
     @Override protected void onCreate(Bundle state) {
@@ -120,7 +129,10 @@ public final class MainActivity extends Activity {
         });
         copy.setOnClickListener(v -> {
             getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("PhoneShare", url.getText()));
-            if (Build.VERSION.SDK_INT < 33) Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show();   // 13+ shows its own
+            // the button answers itself: "Адрес скопирован" fades in, then the label comes back
+            swapText(copy, getString(R.string.copied));
+            copy.removeCallbacks(copyBack);
+            copy.postDelayed(copyBack, 1600);
         });
         findViewById(R.id.new_pin).setOnClickListener(v -> {
             String pin = CaptureService.newPin();
@@ -171,6 +183,37 @@ public final class MainActivity extends Activity {
         } catch (PackageManager.NameNotFoundException ignored) {
         }
         updateCheck.setOnClickListener(v -> checkUpdate(true));
+        updateBar = findViewById(R.id.update_bar);
+
+        // cards resize smoothly when their text changes (viewers, hints), not only when one shows or hides
+        ViewGroup column = (ViewGroup) ((ViewGroup) findViewById(R.id.root)).getChildAt(0);
+        smoothResize(column);
+        for (int i = 0; i < column.getChildCount(); i++) if (column.getChildAt(i) instanceof ViewGroup) smoothResize((ViewGroup) column.getChildAt(i));
+        // first open: the cards rise in one after another; a rotation or a return keeps them still
+        if (state == null && ValueAnimator.areAnimatorsEnabled()) {
+            float rise = 16 * getResources().getDisplayMetrics().density;
+            for (int i = 0; i < column.getChildCount(); i++) {
+                View card = column.getChildAt(i);
+                card.setAlpha(0);
+                card.setTranslationY(rise);
+                card.animate().alpha(1).translationY(0).setStartDelay(i * 45L).setDuration(320).setInterpolator(EASE).start();
+            }
+        }
+    }
+
+    private final Runnable copyBack = () -> swapText(copy, getString(R.string.copy));
+
+    /** New text with a short fade, for a button that answers its own tap. */
+    private static void swapText(TextView v, CharSequence text) {
+        v.setText(text);
+        v.setAlpha(0.3f);
+        v.animate().alpha(1).setDuration(180).setInterpolator(EASE).start();
+    }
+
+    private static void smoothResize(ViewGroup g) {
+        LayoutTransition t = g.getLayoutTransition();
+        if (t == null) g.setLayoutTransition(t = new LayoutTransition());
+        t.enableTransitionType(LayoutTransition.CHANGING);
     }
 
     @Override protected void onResume() {
@@ -250,10 +293,15 @@ public final class MainActivity extends Activity {
         }
         updating = true;
         showUpdate(getString(R.string.update_progress, r.version, 0), R.string.update);
+        updateBar.setProgress(0);
+        updateBar.setVisibility(View.VISIBLE);
         File apk = new File(getCacheDir(), "update.apk");
         new Thread(() -> {
             try {
-                Updater.download(Updater.URL, r, apk, p -> runOnUiThread(() -> updateText.setText(getString(R.string.update_progress, r.version, p))));
+                Updater.download(Updater.URL, r, apk, p -> runOnUiThread(() -> {
+                    updateText.setText(getString(R.string.update_progress, r.version, p));
+                    updateBar.setProgress(p, true);
+                }));
                 runOnUiThread(() -> showUpdate(getString(R.string.update_installing, r.version), R.string.update));
                 install(apk);
             } catch (IOException | RuntimeException e) {
@@ -300,12 +348,14 @@ public final class MainActivity extends Activity {
 
     private void updateFailed(String why) {
         updating = false;
+        updateBar.setVisibility(View.GONE);
         showUpdate(getString(R.string.update_failed, why), R.string.update_retry);
     }
 
     @Override protected void onPause() {
         super.onPause();
         update.removeCallbacks(hourly);
+        breathe(false);   // nothing to animate in the background; render() starts it again on return
         if (CaptureService.onStateChanged == render) CaptureService.onStateChanged = null;
     }
 
@@ -353,6 +403,7 @@ public final class MainActivity extends Activity {
 
         statusTitle.setText(on ? R.string.status_on : R.string.status_off);
         statusDot.setBackgroundResource(on ? R.drawable.dot_live : R.drawable.dot);
+        breathe(on);
         if (statusBg == null) {   // the card lights up like the lamp, fading over 250 ms
             statusBg = new TransitionDrawable(new Drawable[] {getDrawable(R.drawable.bg_card), getDrawable(R.drawable.bg_card_live)});
             statusBg.setCrossFadeEnabled(true);
@@ -408,6 +459,25 @@ public final class MainActivity extends Activity {
         audioHint.setText(audioMissing ? R.string.audio_denied : R.string.audio_hint);
         where.setAlpha(wantAudio ? 1 : 0.5f);
         for (int i = 0; i < where.getChildCount(); i++) where.getChildAt(i).setEnabled(wantAudio);
+    }
+
+    /** On air, the lamp dot breathes like a tally light; off air it rests. */
+    private void breathe(boolean on) {
+        if (on && onAir == null && ValueAnimator.areAnimatorsEnabled()) {
+            onAir = ObjectAnimator.ofPropertyValuesHolder(statusDot,
+                    PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.35f, 1f),
+                    PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.35f, 1f),
+                    PropertyValuesHolder.ofFloat(View.ALPHA, 1f, 0.7f, 1f));
+            onAir.setDuration(1800);
+            onAir.setRepeatCount(ValueAnimator.INFINITE);
+            onAir.start();
+        } else if (!on && onAir != null) {
+            onAir.cancel();
+            onAir = null;
+            statusDot.setScaleX(1);
+            statusDot.setScaleY(1);
+            statusDot.setAlpha(1);
+        }
     }
 
     /** A stepped slider over values; a tick on each stop, the choice saved and applied when the finger lifts. */

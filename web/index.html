@@ -33,6 +33,7 @@
   </header>
   <section id="update" class="update desktop-only" aria-live="polite" hidden>
     <p id="update-text" class="update-text"></p>
+    <span id="update-bar" class="update-bar" aria-hidden="true" hidden><span></span></span>
     <button id="update-go" class="primary" type="button">Обновить</button>
   </section>
   <section class="shelf-wrap">
@@ -126,6 +127,7 @@
 
   <div class="hud hud-bottom">
     <div class="seg" role="radiogroup" aria-label="Масштаб">
+      <span class="seg-pill" aria-hidden="true"></span>
       <button type="button" role="radio" data-fit="contain" aria-checked="true">Вписать</button>
       <button type="button" role="radio" data-fit="cover" aria-checked="false">Заполнить</button>
       <button type="button" role="radio" data-fit="fill" aria-checked="false">Растянуть</button>
