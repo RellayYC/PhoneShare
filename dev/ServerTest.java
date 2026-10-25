@@ -48,7 +48,9 @@ public final class ServerTest {
         check(StreamServer.targetBitrate(1280, 30) == 4_000_000, "1280 px at 30 fps: 4 Mbps, as the old economy preset");
         check(StreamServer.targetBitrate(1920, 60) == 9_100_000, "1920 px at 60 fps: 9.1 Mbps, near the old 8");
         check(StreamServer.targetBitrate(2560, 60) == 15_200_000, "2560 px at 60 fps: 15.2 Mbps, near the old 16");
-        check(StreamServer.targetBitrate(960, 15) == 1_600_000, "low end: 960 px at 15 fps");
+        check(StreamServer.targetBitrate(960, 15) == 1_600_000, "960 px at 15 fps");
+        check(StreamServer.targetBitrate(720, 15) == 1_100_000, "low end: 720 px at 15 fps stays above the floor");
+        check(StreamServer.targetBitrate(2400, 60) == StreamServer.targetBitrate(2560, 60), "a 2400 px screen counts as 2560");
         check(StreamServer.targetBitrate(2560, 120) == 23_000_000, "high end: 2560 px at 120 fps stays under the cap");
         boolean rising = true;
         for (int s = 0; s < StreamServer.SIZES.length; s++) {

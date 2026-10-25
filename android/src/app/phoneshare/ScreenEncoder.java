@@ -54,7 +54,7 @@ final class ScreenEncoder {
     void start() throws IOException {
         running = true;
         bitrate = targetBitrate;
-        configure(displaySize());
+        configure(displaySize(ctx));
         ctx.getSystemService(DisplayManager.class).registerDisplayListener(displayListener, handler);
         handler.postDelayed(adjustBitrate, 1000);
     }
@@ -109,7 +109,7 @@ final class ScreenEncoder {
         @Override public void onDisplayAdded(int id) { }
         @Override public void onDisplayRemoved(int id) { }
         @Override public void onDisplayChanged(int id) {
-            if (id == Display.DEFAULT_DISPLAY && !contentSized) resizeTo(displaySize());
+            if (id == Display.DEFAULT_DISPLAY && !contentSized) resizeTo(displaySize(ctx));
         }
     };
 
@@ -147,7 +147,8 @@ final class ScreenEncoder {
         }
     };
 
-    private int[] displaySize() {
+    /** The full screen in pixels, as the phone holds it now. */
+    static int[] displaySize(Context ctx) {
         if (Build.VERSION.SDK_INT >= 30) {
             Rect b = ctx.getSystemService(WindowManager.class).getMaximumWindowMetrics().getBounds();
             return new int[] {b.width(), b.height()};

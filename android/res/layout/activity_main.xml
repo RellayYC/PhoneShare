@@ -191,32 +191,48 @@
                 style="@style/Label"
                 android:text="@string/quality_label" />
 
-            <RadioGroup
-                android:id="@+id/quality"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+            <!-- sharpness and smoothness are chosen apart: a sharp slow picture or a rough fast one;
+                 MainActivity fills the stops this phone's screen can show -->
+            <LinearLayout style="@style/StopsRow">
 
-                <RadioButton
-                    android:id="@+id/q0"
-                    style="@style/Option"
-                    android:text="@string/q_low" />
+                <TextView
+                    style="@style/StopsName"
+                    android:labelFor="@+id/size"
+                    android:text="@string/size_label" />
 
-                <RadioButton
-                    android:id="@+id/q1"
-                    style="@style/Option"
-                    android:text="@string/q_mid" />
+                <TextView
+                    android:id="@+id/size_value"
+                    style="@style/StopsValue"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
 
-                <RadioButton
-                    android:id="@+id/q2"
-                    style="@style/Option"
-                    android:text="@string/q_high" />
-            </RadioGroup>
+            <SeekBar
+                android:id="@+id/size"
+                style="@style/Stops" />
+
+            <LinearLayout
+                style="@style/StopsRow"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    style="@style/StopsName"
+                    android:labelFor="@+id/fps"
+                    android:text="@string/fps_label" />
+
+                <TextView
+                    android:id="@+id/fps_value"
+                    style="@style/StopsValue"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+
+            <SeekBar
+                android:id="@+id/fps"
+                style="@style/Stops" />
 
             <TextView
                 android:id="@+id/quality_hint"
                 style="@style/Hint"
-                android:layout_marginTop="2dp"
-                android:text="@string/quality_hint" />
+                android:layout_marginTop="4dp" />
 
             <View style="@style/Divider" />
 

@@ -17,10 +17,11 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.RadioGroup;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -36,6 +37,7 @@ import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final int REQ_PROJECTION = 1, REQ_PERMISSIONS = 2;
@@ -51,6 +53,10 @@ public final class MainActivity extends Activity {
     private Updater.Release offer;
     private boolean updating;
     private final TextView[] cells = new TextView[6];
+    private TextView sizeValue, fpsValue;
+    private SeekBar sizeBar, fpsBar;
+    private int[] sizes, fpsStops;   // the stops this phone's screen can show
+    private boolean dragging;
     private final Runnable render = this::render;
 
     @Override protected void onCreate(Bundle state) {
@@ -112,13 +118,14 @@ public final class MainActivity extends Activity {
             render();
         });
 
-        RadioGroup quality = findViewById(R.id.quality);
-        int[] ids = {R.id.q0, R.id.q1, R.id.q2};
-        quality.check(ids[Math.max(0, Math.min(2, CaptureService.prefs(this).getInt("preset", 1)))]);
-        quality.setOnCheckedChangeListener((g, id) -> {
-            for (int i = 0; i < 3; i++) if (ids[i] == id) CaptureService.prefs(this).edit().putInt("preset", i).apply();
-            render();
-        });
+        // sharpness and smoothness apart: a sharp slow picture or a rough fast one, changed on the fly
+        sizeValue = findViewById(R.id.size_value);
+        fpsValue = findViewById(R.id.fps_value);
+        sizes = CaptureService.sizes(this);
+        fpsStops = CaptureService.fpsStops(this);
+        int[] video = CaptureService.video(this);
+        sizeBar = stops(R.id.size, sizes, video[0]);
+        fpsBar = stops(R.id.fps, fpsStops, video[1]);
 
         Switch audio = findViewById(R.id.audio);
         audio.setChecked(CaptureService.prefs(this).getBoolean("audio", true));
@@ -304,9 +311,57 @@ public final class MainActivity extends Activity {
         if (on) statusText.setText(v.isEmpty() ? "Открой адрес ниже на ПК и введи PIN." : "Смотрят: " + v.size());
         else statusText.setText(R.string.status_off_text);
 
-        qualityHint.setText(on ? R.string.quality_restart : R.string.quality_hint);
+        renderQuality();
         boolean audioMissing = on && !s.audioOn && CaptureService.prefs(this).getBoolean("audio", true);
         audioHint.setText(audioMissing ? R.string.audio_denied : R.string.audio_hint);
+    }
+
+    /** A stepped slider over values; a tick on each stop, the choice saved and applied when the finger lifts. */
+    private SeekBar stops(int id, int[] values, int current) {
+        SeekBar bar = findViewById(id);
+        bar.setMax(values.length - 1);
+        for (int i = 0; i < values.length; i++) if (values[i] == current) bar.setProgress(i);
+        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar b, int progress, boolean fromUser) {
+                if (fromUser) b.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                renderQuality();
+                if (fromUser && !dragging) saveQuality();   // keys and TalkBack step without a drag
+            }
+            @Override public void onStartTrackingTouch(SeekBar b) { dragging = true; }
+            @Override public void onStopTrackingTouch(SeekBar b) {
+                dragging = false;
+                saveQuality();   // one encoder rebuild per drag, not one per stop
+            }
+        });
+        return bar;
+    }
+
+    private void saveQuality() {
+        CaptureService.prefs(this).edit()
+                .putInt("size", sizes[sizeBar.getProgress()]).putInt("fps", fpsStops[fpsBar.getProgress()]).apply();
+        CaptureService s = CaptureService.instance;
+        if (s != null) s.retune();
+    }
+
+    private void renderQuality() {
+        if (sizeBar == null || fpsBar == null) return;   // the first setProgress comes before both exist
+        int size = sizes[sizeBar.getProgress()], fps = fpsStops[fpsBar.getProgress()];
+        int[] screen = ScreenEncoder.displaySize(this);
+        String sizeText = getString(size >= Math.max(screen[0], screen[1]) ? R.string.size_value_screen : R.string.size_value, size);
+        String fpsText = getString(R.string.fps_value, fps);
+        sizeValue.setText(sizeText);
+        fpsValue.setText(fpsText);
+        describe(sizeBar, R.string.size_label, sizeText);
+        describe(fpsBar, R.string.fps_label, fpsText);
+        String mbps = String.format(Locale.forLanguageTag("ru"), "%.1f", StreamServer.targetBitrate(size, fps) / 1e6);
+        CaptureService s = CaptureService.instance;
+        qualityHint.setText(getString(s != null && s.port > 0 ? R.string.quality_live : R.string.quality_hint, mbps));
+    }
+
+    /** TalkBack reads "Плавность, 60 кадров/с", not a percentage. */
+    private void describe(SeekBar bar, int label, String value) {
+        if (Build.VERSION.SDK_INT >= 30) bar.setStateDescription(value);
+        else bar.setContentDescription(getString(label) + ", " + value);
     }
 
     /** Wi-Fi and hotspot addresses (private IPv4), Wi-Fi first. */

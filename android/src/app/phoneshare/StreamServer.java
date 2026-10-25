@@ -49,8 +49,8 @@ public final class StreamServer {
     static final long LOCK_MS = 60_000;
     static final int MIN_BITRATE = 1_000_000, MAX_BITRATE = 25_000_000;
     /** Picture sharpness (long side, px) and smoothness (frames per second) the phone app offers; chosen separately. */
-    static final int[] SIZES = {960, 1280, 1920, 2560}, FPS = {15, 30, 45, 60, 90, 120};
-    private static final int[] BITRATE_AT_30 = {2_500_000, 4_000_000, 6_000_000, 10_000_000};
+    static final int[] SIZES = {720, 960, 1280, 1600, 1920, 2560}, FPS = {15, 30, 45, 60, 90, 120};
+    private static final int[] BITRATE_AT_30 = {1_600_000, 2_500_000, 4_000_000, 5_000_000, 6_000_000, 10_000_000};
     static final String WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     static final Pattern ASSET_NAME = Pattern.compile("[A-Za-z0-9._-]+");
 
@@ -227,7 +227,8 @@ public final class StreamServer {
     }
 
     /**
-     * Target bitrate for a size from SIZES and any fps: its 30 fps rate times (fps/30)^0.6, since each extra frame
+     * Target bitrate for a long side (between two SIZES it counts as the larger, e.g. a 2400 px screen as 2560) and
+     * any fps: the size's 30 fps rate times (fps/30)^0.6, since each extra frame
      * of the same picture costs less than the last. Rounded to 100 kbps. The old presets land close: 1280@30 = 4,
      * 1920@60 ≈ 9, 2560@60 ≈ 15 Mbps.
      */

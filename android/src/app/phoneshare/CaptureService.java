@@ -30,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -82,15 +83,36 @@ public final class CaptureService extends Service {
         int preset = Math.max(0, Math.min(2, p.getInt("preset", 1)));
         int size = p.getInt("size", new int[] {1280, 1920, 2560}[preset]);
         int fps = p.getInt("fps", preset == 0 ? 30 : 60);
-        return new int[] {size, Math.min(fps, maxFps(c))};
+        return new int[] {atMost(sizes(c), size), atMost(fpsStops(c), fps)};
     }
 
-    /** The fastest frame rate this phone's screen shows (60 on most, 90 or 120 on fast screens). */
-    static int maxFps(Context c) {
+    /** Sharpness stops this phone offers: the sizes below its screen, then the screen's own (at most 2560 px). */
+    static int[] sizes(Context c) {
+        int[] d = ScreenEncoder.displaySize(c);
+        int[] all = StreamServer.SIZES;
+        int top = Math.min(Math.max(d[0], d[1]), all[all.length - 1]);
+        int[] out = new int[all.length + 1];
+        int n = 0;
+        for (int s : all) if (s < top) out[n++] = s;
+        out[n++] = top;
+        return Arrays.copyOf(out, n);
+    }
+
+    /** Smoothness stops up to the screen's refresh rate: 15 to 60 everywhere, 90 and 120 on fast screens. */
+    static int[] fpsStops(Context c) {
         float hz = 60;
         Display d = c.getSystemService(DisplayManager.class).getDisplay(Display.DEFAULT_DISPLAY);
         if (d != null) for (Display.Mode m : d.getSupportedModes()) hz = Math.max(hz, m.getRefreshRate());
-        return Math.round(hz);
+        int n = 0;
+        for (int f : StreamServer.FPS) if (f <= Math.round(hz)) n++;
+        return Arrays.copyOf(StreamServer.FPS, n);
+    }
+
+    /** The largest stop not above v, or the first stop. */
+    static int atMost(int[] stops, int v) {
+        int r = stops[0];
+        for (int s : stops) if (s <= v) r = s;
+        return r;
     }
 
     /** Applies the saved sharpness and smoothness to a running stream right away. */
