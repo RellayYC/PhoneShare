@@ -27,36 +27,47 @@
 </svg>
 
 <main id="home" class="screen home" aria-labelledby="home-title">
+  <header class="appbar">
+    <p class="brand"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect class="lg-body" x="12" y="5" width="32" height="54" rx="8"/><rect class="lg-screen" x="16.5" y="11" width="23" height="42" rx="3.5"/><circle class="lg-lamp" cx="45" cy="15" r="9.5"/></svg>PhoneShare</p>
+    <button id="rescan" class="ghost" type="button"><svg class="icon"><use href="#i-refresh"/></svg><span>Искать снова</span></button>
+  </header>
   <section id="update" class="update desktop-only" aria-live="polite" hidden>
     <p id="update-text" class="update-text"></p>
     <button id="update-go" class="primary" type="button">Обновить</button>
   </section>
   <section class="shelf-wrap">
-    <div class="shelf-head">
-      <h1 id="home-title">Телефоны</h1>
-      <button id="rescan" class="ghost" type="button"><svg class="icon"><use href="#i-refresh"/></svg><span>Искать снова</span></button>
-    </div>
+    <h1 id="home-title">Телефоны</h1>
     <ul id="shelf" class="shelf" aria-label="Телефоны"></ul>
-    <p id="shelf-empty" class="shelf-empty">Ищу телефоны в этой сети…</p>
+    <div id="shelf-empty" class="empty">
+      <span class="empty-phone" aria-hidden="true"><span class="empty-lamp"></span></span>
+      <h2>Ищу телефоны в этой сети</h2>
+      <ol class="empty-steps">
+        <li>Открой PhoneShare на телефоне</li>
+        <li>Нажми «Начать трансляцию»</li>
+        <li>Выбери телефон здесь и введи PIN с его экрана</li>
+      </ol>
+    </div>
   </section>
 
   <div class="aside">
     <details id="help" class="help">
       <summary><svg class="icon chevron"><use href="#i-chevron"/></svg>Нет нужного телефона?</summary>
-      <ul class="checks">
-        <li>Открой PhoneShare на телефоне и нажми «Начать трансляцию»: на экране появится PIN.</li>
-        <li>Подключи телефон к той же сети, что и ПК. <span id="pc-net" class="pc-net"></span></li>
-        <li>Гостевая сеть и «изоляция клиентов» на роутере не пускают устройства друг к другу. Подключи оба к основной сети.</li>
-        <li>VPN на ПК или телефоне уводит трафик мимо домашней сети. Выключи его на время показа.</li>
-      </ul>
-      <form id="add-form" class="add" autocomplete="off">
-        <label for="add-host">Адрес с экрана телефона</label>
-        <div class="add-row">
-          <input id="add-host" placeholder="192.168.1.23:8080" inputmode="url" spellcheck="false" required>
-          <button class="secondary" type="submit">Подключить</button>
-        </div>
-        <p id="add-error" class="error" role="alert"></p>
-      </form>
+      <div class="help-body">
+        <ul class="checks">
+          <li>На телефоне идёт трансляция: на его экране видны адрес и PIN.</li>
+          <li>Подключи телефон к той же сети, что и ПК. <span id="pc-net" class="pc-net"></span></li>
+          <li>Гостевая сеть и «изоляция клиентов» на роутере не пускают устройства друг к другу. Подключи оба к основной сети.</li>
+          <li>VPN на ПК или телефоне уводит трафик мимо домашней сети. Выключи его на время показа.</li>
+        </ul>
+        <form id="add-form" class="add" autocomplete="off">
+          <label for="add-host">Адрес с экрана телефона</label>
+          <div class="add-row">
+            <input id="add-host" placeholder="192.168.1.23:8080" inputmode="url" spellcheck="false" required>
+            <button class="secondary" type="submit">Подключить</button>
+          </div>
+          <p id="add-error" class="error" role="alert"></p>
+        </form>
+      </div>
     </details>
 
     <section id="miracast" class="miracast desktop-only" aria-labelledby="miracast-title">
@@ -69,7 +80,10 @@
 </main>
 
 <main id="pin" class="screen pin" aria-labelledby="pin-device">
-  <button id="pin-back" class="icon-btn pin-back" type="button" aria-label="К списку телефонов"><svg class="icon"><use href="#i-back"/></svg></button>
+  <div class="pin-top">
+    <button id="pin-back" class="icon-btn desktop-only" type="button" aria-label="К списку телефонов" title="К списку телефонов"><svg class="icon"><use href="#i-back"/></svg></button>
+    <p class="brand browser-only"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect class="lg-body" x="12" y="5" width="32" height="54" rx="8"/><rect class="lg-screen" x="16.5" y="11" width="23" height="42" rx="3.5"/><circle class="lg-lamp" cx="45" cy="15" r="9.5"/></svg>PhoneShare</p>
+  </div>
   <div class="pin-layout">
     <span id="pin-card" class="phone-body pin-card" aria-hidden="true"></span>
     <form id="pin-form" class="pin-form" autocomplete="off">

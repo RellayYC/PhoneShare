@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The page's palette (web/style.css); dev/check-palette.mjs keeps the copies equal. -->
 <resources>
-    <color name="paper">#E9ECF1</color>
-    <color name="surface">#F7F8FA</color>
-    <color name="ink">#1D2433</color>
-    <color name="ink2">#566074</color>
-    <color name="line">#CFD5DE</color>
-    <color name="lamp">#F2A900</color>
-    <color name="on_lamp">#1D2433</color>
-    <color name="danger">#B8322B</color>
-    <color name="online">#2C7A4B</color>
+    <color name="paper">#EEF0F3</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="raised">#F6F7F9</color>
+    <color name="ink">#141821</color>
+    <color name="ink2">#5B6272</color>
+    <color name="line">#DCE0E6</color>
+    <color name="field_line">#7A8190</color>
+    <color name="lamp">#F4AE00</color>
+    <color name="lamp_soft">#FEF4DB</color>
+    <color name="on_lamp">#141821</color>
+    <color name="danger">#C2362B</color>
+    <color name="online">#17743E</color>
     <color name="icon_bg">#E9ECF1</color>
 </resources>

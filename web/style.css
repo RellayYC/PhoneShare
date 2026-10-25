@@ -1,17 +1,26 @@
+/* One palette for the page, the Windows window (desktop/Program.cs) and the phone app (colors.xml in android/res/values
+   and values-night); dev/check-palette.mjs keeps the copies equal and checks their contrast. */
 :root {
-  --paper: #e9ecf1;
-  --surface: #f7f8fa;
-  --ink: #1d2433;
-  --ink-2: #566074;
-  --line: #cfd5de;
-  --lamp: #f2a900;
-  --lamp-press: #d99800;
-  --danger: #b8322b;
-  --online: #2c7a4b;
-  --rec: #d23b30;
-  --bezel: #1d2433;     /* phone cards wear the app icon's dark body */
-  --screen: #dde2ea;
-  --focus: #1d2433;
+  --paper: #EEF0F3;      /* window background, also the Windows title bar */
+  --surface: #FFFFFF;    /* panels and buttons lifted off the paper */
+  --raised: #F6F7F9;     /* fields and PIN cells */
+  --ink: #141821;
+  --ink-2: #5B6272;
+  --line: #DCE0E6;       /* dividers */
+  --field-line: #7A8190; /* edges of fields: 3:1 against the paper and panels */
+  --lamp: #F4AE00;       /* the on-air lamp: live, and the one main action per screen */
+  --lamp-press: #DB9C00;
+  --on-lamp: #141821;
+  --online: #17743E;
+  --danger: #C2362B;
+  --rec: #E5372C;
+  --bezel: #141821;      /* phone cards wear the app icon's dark body */
+  --screen: #E3E7ED;
+  --focus: #141821;
+  --shadow-1: 0 1px 2px rgb(20 24 33 / 0.06), 0 0 0 1px rgb(20 24 33 / 0.05);
+  --shadow-2: 0 2px 4px rgb(20 24 33 / 0.06), 0 10px 24px -6px rgb(20 24 33 / 0.18);
+  --shadow-3: 0 4px 8px rgb(20 24 33 / 0.08), 0 18px 36px -8px rgb(20 24 33 / 0.26);
+  --edge: rgb(0 0 0 / 0);    /* hairline that keeps dark phone bodies off a dark page */
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --font-din: Bahnschrift, "DIN Alternate", "Barlow Semi Condensed", "Roboto Condensed", "Arial Narrow", var(--font-ui);
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -19,17 +28,25 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #1e2430;
-    --surface: #272e3c;
-    --ink: #e6e9ef;
-    --ink-2: #a0a9ba;
-    --line: #394254;
-    --danger: #ff7a70;
-    --online: #6fd39a;
-    --rec: #ff6a5e;
-    --bezel: #0f131a;
-    --screen: #2c3442;
-    --focus: #f2a900;
+    --paper: #15181E;
+    --surface: #1D2129;
+    --raised: #262B35;
+    --ink: #EDEFF3;
+    --ink-2: #9CA3B1;
+    --line: #313744;
+    --field-line: #717A8A;
+    --lamp: #FFB61A;
+    --lamp-press: #F0A500;
+    --online: #52D08A;
+    --danger: #FF7E72;
+    --rec: #FF5F52;
+    --bezel: #0D0F13;
+    --screen: #262B35;
+    --focus: #FFB61A;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --shadow-2: 0 2px 4px rgb(0 0 0 / 0.35), 0 12px 28px -6px rgb(0 0 0 / 0.6);
+    --shadow-3: 0 4px 8px rgb(0 0 0 / 0.4), 0 20px 40px -8px rgb(0 0 0 / 0.7);
+    --edge: rgb(255 255 255 / 0.1);
     color-scheme: dark;
   }
 }
@@ -44,9 +61,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
-h1, h2, p { margin: 0; }
-h1 { text-wrap: balance; }
-p { text-wrap: pretty; }
+h1, h2, p, ol { margin: 0; }
+h1, h2 { text-wrap: balance; }
+p, li { text-wrap: pretty; }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -60,21 +77,29 @@ body[data-screen="home"] #home,
 body[data-screen="pin"] #pin { display: flex; }
 body[data-screen="player"] #player { display: block; }
 body:not(.desktop) .desktop-only { display: none; }
+body.desktop .browser-only { display: none; }
+
+/* ---- the mark: the app icon drawn in the page's own colours ---- */
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 600 20px/1 var(--font-din); letter-spacing: 0.01em; }
+.brand-mark { width: 30px; height: 30px; flex: none; }
+.brand-mark .lg-body { fill: var(--ink); }
+.brand-mark .lg-screen { fill: var(--paper); }
+.brand-mark .lg-lamp { fill: var(--lamp); stroke: var(--paper); stroke-width: 3.5; }
 
 /* ---- buttons ---- */
 .primary, .secondary, .ghost {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; padding: 0 18px;
-  border: 0; border-radius: 10px;
+  border: 0; border-radius: 12px;
   font-weight: 600;
-  transition-property: background-color, color, scale, opacity;
+  transition-property: background-color, color, box-shadow, scale, opacity;
   transition-duration: 150ms;
   transition-timing-function: var(--ease);
 }
-.primary { background: var(--lamp); color: #1d2433; }
+.primary { background: var(--lamp); color: var(--on-lamp); box-shadow: 0 1px 2px rgb(20 24 33 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.08); }
 .primary:hover { background: var(--lamp-press); }
-.secondary { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
-.secondary:hover { box-shadow: 0 0 0 1px var(--ink-2); }
+.secondary { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+.secondary:hover { background: var(--raised); }
 .ghost { background: transparent; color: var(--ink-2); padding: 0 12px; }
 .ghost:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 7%, transparent); }
 .primary:active, .secondary:active, .ghost:active, .icon-btn:active { scale: 0.96; }
@@ -84,7 +109,7 @@ body:not(.desktop) .desktop-only { display: none; }
 .icon-btn {
   display: inline-grid; place-items: center; position: relative;
   width: 44px; height: 44px; padding: 0;
-  border: 0; border-radius: 10px; background: transparent; color: inherit;
+  border: 0; border-radius: 12px; background: transparent; color: inherit;
   transition-property: background-color, color, scale;
   transition-duration: 150ms;
   transition-timing-function: var(--ease);
@@ -93,115 +118,170 @@ body:not(.desktop) .desktop-only { display: none; }
 
 .error { min-height: 1.5em; color: var(--danger); font-size: 14px; }
 
-/* ---- home: a shelf of phones ---- */
-.home {
-  flex-direction: column; gap: 44px;
-  max-width: 1040px; margin: 0 auto; padding: 36px 32px 48px;
+input:not([type]), input[type="text"] {
+  min-height: 44px; padding: 0 14px;
+  background: var(--surface); border: 0; border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--field-line);
+  font-variant-numeric: tabular-nums;
+  transition-property: box-shadow;
+  transition-duration: 150ms;
 }
-.shelf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
-.shelf-head h1 { font: 600 30px/1.1 var(--font-din); font-stretch: 87.5%; }
+input:not([type])::placeholder { color: var(--ink-2); opacity: 1; }
+input:not([type]):focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus); }
+
+/* ---- home: app bar, a shelf of phones, help underneath ---- */
+.home {
+  flex-direction: column; gap: 28px;
+  max-width: 1120px; margin: 0 auto; padding: 14px 32px 48px;
+}
+.appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; }
 #rescan .icon { width: 18px; height: 18px; }
 body.scanning #rescan .icon { animation: spin 900ms linear infinite; }
 @keyframes spin { to { rotate: 360deg; } }
 
-.shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 152px); gap: 30px 24px; }
-.shelf:empty, .shelf-empty[hidden] { display: none; }
-.shelf-empty { color: var(--ink-2); }
-.phone-item { position: relative; }
-.phone {
-  display: flex; flex-direction: column; align-items: flex-start; width: 100%;
-  padding: 0; border: 0; border-radius: 22px; background: none; color: inherit; text-align: left;
-}
-.phone-body {
-  display: block; width: 100%; aspect-ratio: 9 / 16; padding: 6px;
-  border-radius: 22px; background: var(--bezel);   /* 22 = 16 screen radius + 6 bezel */
-  transition-property: scale, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: var(--ease);
-}
-.phone:hover .phone-body { box-shadow: 0 0 0 3px color-mix(in oklab, var(--lamp) 60%, transparent); }
-.phone:active .phone-body { scale: 0.96; }
-.phone-screen { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: 16px; background: var(--screen); }
-.phone-screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.phone-screen.landscape { background: #000; }
-.phone-screen.landscape img { object-fit: contain; }
-.phone-letter { font: 600 56px/1 var(--font-din); color: var(--ink-2); }
-.phone-item:not(.online) .phone-screen { filter: grayscale(1); opacity: 0.6; }
-.phone-name { margin-top: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 18px/1.25 var(--font-din); }
-.phone-state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
-.phone-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.phone-item.online .phone-state { color: var(--online); }
-.phone-addr { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.phone-forget {
-  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px;
-  background: rgb(15 18 26 / 0.62); color: #fff; opacity: 0;
-  transition-property: opacity, background-color, scale;
-}
-.phone-forget .icon { width: 18px; height: 18px; }
-.phone-forget:hover { background: rgb(15 18 26 / 0.85); }
-.phone-item:hover .phone-forget, .phone-forget:focus-visible { opacity: 1; }
-@media (hover: none) { .phone-forget { opacity: 1; } }
-
-/* ---- a newer PhoneShare (Windows app) ---- */
+/* a newer PhoneShare (Windows app) */
 .update {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px;
-  padding: 10px 10px 10px 18px; background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--line);
+  padding: 8px 8px 8px 18px; border-radius: 20px;   /* 20 = 12 button + 8 padding */
+  background: color-mix(in oklab, var(--lamp) 14%, var(--surface)); box-shadow: var(--shadow-1);
 }
 .update[hidden] { display: none; }
 .update-text { font-variant-numeric: tabular-nums; }
 
-/* ---- under the shelf: help when a phone is missing, and Miracast ---- */
-.aside {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; gap: 32px 48px;
-  padding-top: 24px; border-top: 1px solid var(--line);
+.shelf-wrap h1 { margin-bottom: 24px; font: 600 34px/1.1 var(--font-din); font-stretch: 87.5%; }
+.shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, 176px); gap: 36px 28px; }
+.shelf:empty { display: none; }
+.phone-item { position: relative; }
+.phone {
+  display: flex; flex-direction: column; align-items: flex-start; width: 100%;
+  padding: 0; border: 0; border-radius: 26px; background: none; color: inherit; text-align: left;
 }
+.phone-body {
+  position: relative; display: block; width: 100%; aspect-ratio: 9 / 16; padding: 6px;
+  border-radius: 26px; background: var(--bezel);   /* 26 = 20 screen radius + 6 bezel */
+  box-shadow: var(--shadow-2), inset 0 0 0 1px var(--edge);
+  transition-property: translate, scale, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: var(--ease);
+}
+.phone-body::after {   /* the front camera: a phone, not a card */
+  content: ""; position: absolute; top: 13px; left: 50%; width: 7px; height: 7px; margin-left: -3.5px;
+  border-radius: 50%; background: var(--bezel); box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.phone:hover .phone-body { translate: 0 -3px; box-shadow: var(--shadow-3), 0 0 0 3px color-mix(in oklab, var(--lamp) 70%, transparent); }
+.phone:focus-visible { outline: none; }
+.phone:focus-visible .phone-body { box-shadow: var(--shadow-2), 0 0 0 3px var(--paper), 0 0 0 5px var(--focus); }
+.phone:active .phone-body { scale: 0.96; }
+.phone-screen { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: 20px; background: var(--screen); }
+.phone-screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.phone-screen.landscape { background: #000; }
+.phone-screen.landscape img { object-fit: contain; }
+.phone-letter { font: 600 52px/1 var(--font-din); color: var(--ink-2); opacity: 0.55; }
+.phone-item:not(.online) .phone-screen { filter: grayscale(1); opacity: 0.55; }
+.phone-name { margin-top: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 19px/1.25 var(--font-din); }
+.phone-state { display: inline-flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 13px; color: var(--ink-2); }
+.phone-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.phone-item.online .phone-state { color: var(--online); }
+.phone-item.online .phone-state::before { box-shadow: 0 0 0 3px color-mix(in oklab, var(--online) 22%, transparent); }
+.phone-addr { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.phone-forget {
+  position: absolute; top: 12px; right: 12px; width: 40px; height: 40px;
+  background: rgb(13 15 19 / 0.62); color: #fff; opacity: 0;
+  backdrop-filter: blur(8px);
+  transition-property: opacity, background-color, scale;
+}
+.phone-forget .icon { width: 18px; height: 18px; }
+.phone-forget:hover { background: rgb(13 15 19 / 0.85); }
+.phone-item:hover .phone-forget, .phone-forget:focus-visible { opacity: 1; }
+@media (hover: none) { .phone-forget { opacity: 1; } }
+
+/* nothing found yet: the app icon itself, its lamp breathing while the window searches */
+.empty { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px 40px; padding: 8px 0 4px; }
+.empty[hidden] { display: none; }
+.empty-phone {
+  position: relative; grid-row: span 2; width: 108px; aspect-ratio: 9 / 16; padding: 6px;
+  border-radius: 22px; background: var(--bezel); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--edge);
+}
+.empty-phone::before { content: ""; display: block; height: 100%; border-radius: 16px; background: var(--screen); }
+.empty-lamp {
+  position: absolute; top: -12px; right: -14px; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--lamp); box-shadow: 0 0 0 5px var(--paper);
+}
+.empty-lamp::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--lamp) 55%, transparent);
+  animation: breathe 2400ms var(--ease) infinite;
+}
+@keyframes breathe {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--lamp) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 22px color-mix(in oklab, var(--lamp) 0%, transparent); }
+}
+.empty h2 { align-self: end; font: 600 24px/1.2 var(--font-din); }
+.empty-steps { align-self: start; display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 0; list-style: none; counter-reset: step; color: var(--ink-2); }
+.empty-steps li { display: flex; align-items: center; gap: 10px; counter-increment: step; max-width: 24ch; }
+.empty-steps li::before {
+  content: counter(step); display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface); box-shadow: var(--shadow-1); color: var(--ink); font: 600 15px/1 var(--font-din);
+}
+
+/* under the shelf, one panel: help when a phone is missing, then Miracast */
+.aside { margin-top: 12px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-1); }
+.help { padding: 12px 28px; }
+.help-body { display: grid; grid-template-columns: minmax(0, 62ch) minmax(260px, 400px); justify-content: space-between; align-items: start; gap: 20px 48px; padding: 4px 0 8px 26px; }
 .help summary {
-  display: flex; align-items: center; gap: 6px; width: fit-content; min-height: 44px;
+  display: flex; align-items: center; gap: 6px; width: fit-content; min-height: 48px;
   font: 600 19px/1.3 var(--font-din); cursor: pointer; list-style: none;
 }
 .help summary::-webkit-details-marker { display: none; }
 .chevron { width: 20px; height: 20px; color: var(--ink-2); transition-property: rotate; transition-duration: 150ms; transition-timing-function: var(--ease); }
 .help[open] .chevron { rotate: 90deg; }
-.checks { margin: 6px 0 22px; padding-left: 1.2em; color: var(--ink-2); max-width: 62ch; }
+.checks { margin: 0; padding-left: 1.2em; color: var(--ink-2); }
 .checks li + li { margin-top: 6px; }
+.checks li::marker { color: var(--field-line); }
 .pc-net { color: var(--ink); font-variant-numeric: tabular-nums; }
-.add { display: flex; flex-direction: column; gap: 8px; max-width: 460px; }
+.add { display: flex; flex-direction: column; gap: 8px; }
 .add label { color: var(--ink-2); font-size: 14px; }
 .add-row { display: flex; gap: 8px; }
 .add-row input { flex: 1; min-width: 0; }
-.steps { margin: 0; padding-left: 1.4em; color: var(--ink-2); max-width: 60ch; }
+.miracast {
+  display: grid; grid-template-columns: minmax(0, 62ch) auto; justify-content: space-between; align-items: center; gap: 4px 48px;
+  padding: 20px 28px 22px 54px; border-top: 1px solid var(--line);
+}
+.miracast h2 { font: 600 19px/1.3 var(--font-din); }
+.miracast-text { grid-column: 1; color: var(--ink-2); }
+#miracast-open { grid-column: 2; grid-row: 1 / span 2; }
+.steps { grid-column: 1; margin: 8px 0 0; padding-left: 1.4em; color: var(--ink-2); }
 .steps li + li { margin-top: 4px; }
-.miracast { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.miracast h2 { display: flex; align-items: center; min-height: 44px; font: 600 19px/1.3 var(--font-din); }
-.miracast-text { color: var(--ink-2); max-width: 60ch; }
-.miracast .steps { margin-top: 4px; }
+.steps[hidden] { display: none; }
 
+@media (max-width: 760px) {
+  .help-body { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+  .miracast { grid-template-columns: minmax(0, 1fr); justify-items: start; padding-left: 28px; }
+  #miracast-open { grid-column: 1; grid-row: auto; margin-top: 10px; }
+}
 @media (max-width: 600px) {
-  .home { gap: 32px; padding: 24px 16px 40px; }
-  .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
+  .home { gap: 22px; padding: 8px 16px 40px; }
+  .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
+  .empty { grid-template-columns: 1fr; justify-items: start; gap: 22px; }
+  .empty-phone { grid-row: auto; width: 84px; }
+  .help, .miracast { padding-left: 18px; padding-right: 18px; }
 }
-input:not([type]), input[type="text"] {
-  min-height: 44px; padding: 0 14px;
-  background: var(--surface); border: 0; border-radius: 10px;
-  box-shadow: 0 0 0 1px var(--line);
-  font-variant-numeric: tabular-nums;
-}
-input:not([type]):focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 
 /* ---- PIN: the phone on the left, its code on the right ---- */
-.pin { min-height: 100%; align-items: center; justify-content: center; padding: 72px 24px 40px; position: relative; }
-.pin-back { position: absolute; top: 16px; left: 12px; }
-body:not(.desktop) .pin-back { display: none; }
-.pin-layout { display: flex; align-items: center; gap: 56px; }
-.pin-card { width: 188px; flex: none; }
+.pin { min-height: 100%; align-items: center; justify-content: center; padding: 76px 24px 40px; position: relative; }
+.pin-top { position: absolute; top: 14px; left: 12px; right: 12px; display: flex; align-items: center; min-height: 44px; }
+.pin-top .brand { padding-left: 8px; }
+.pin-layout { display: flex; align-items: center; gap: 64px; }
+.pin-card { width: 196px; flex: none; }
 .pin-card .phone-letter { font-size: 72px; }
-.pin-form { flex: 0 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.pin-form h1 { font: 600 30px/1.15 var(--font-din); font-stretch: 87.5%; overflow-wrap: anywhere; }
-.pin-text { color: var(--ink-2); margin-bottom: 18px; }
+.pin-form { flex: none; width: 392px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pin-form h1 { font: 600 34px/1.15 var(--font-din); font-stretch: 87.5%; overflow-wrap: anywhere; }
+.pin-text { color: var(--ink-2); margin-bottom: 20px; }
 @media (max-width: 720px) {
-  .pin-layout { flex-direction: column; gap: 24px; width: 100%; max-width: 380px; }
+  .pin-layout { flex-direction: column; gap: 24px; width: 100%; max-width: 392px; }
   .pin-card { width: 112px; }
   .pin-card .phone-letter { font-size: 44px; }
+  .pin-card.phone-body::after { top: 10px; width: 6px; height: 6px; margin-left: -3px; }
   .pin-form { flex: none; width: 100%; text-align: center; }
   .pin-form .check { justify-content: center; }
 }
@@ -211,26 +291,29 @@ body:not(.desktop) .pin-back { display: none; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   opacity: 0; border: 0; padding: 0; font-size: 16px; caret-color: transparent;
 }
-.cells { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.cells { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
 .cells span {
   display: grid; place-items: center;
-  height: 64px; border-radius: 12px;
-  background: var(--surface); box-shadow: 0 0 0 1px var(--line);
-  font: 600 38px/1 var(--font-din); font-variant-numeric: tabular-nums;
+  height: 68px; border-radius: 12px;
+  background: var(--surface); box-shadow: var(--shadow-1);
+  font: 600 40px/1 var(--font-din); font-variant-numeric: tabular-nums;
   transition-property: box-shadow;
   transition-duration: 120ms;
 }
-.cells span.cur { box-shadow: 0 0 0 2px var(--ink); }
-.pin-field input:not(:focus) + .cells span.cur { box-shadow: 0 0 0 1px var(--line); }
-.pin-field.bad .cells span, .pin-field.bad input:not(:focus) + .cells span.cur { box-shadow: 0 0 0 1px var(--danger); }
-.pin-form .error { margin-top: 8px; }
-.check { display: flex; align-items: center; gap: 10px; margin: 2px 0 14px; color: var(--ink-2); font-size: 14px; cursor: pointer; min-height: 44px; }
+.cells span.cur { box-shadow: var(--shadow-1), 0 0 0 2px var(--focus); }
+.pin-field input:not(:focus) + .cells span.cur { box-shadow: var(--shadow-1); }
+.pin-field.bad .cells span, .pin-field.bad input:not(:focus) + .cells span.cur { box-shadow: 0 0 0 1.5px var(--danger); }
+.pin-form .error { margin-top: 6px; }
+.check { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--ink-2); font-size: 14px; cursor: pointer; min-height: 44px; }
 .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--lamp); }
 
-/* ---- player ---- */
+/* ---- player: always dark, whatever the theme ---- */
 .player {
-  position: fixed; inset: 0; background: #000; color: #eef1f6; overflow: hidden;
-  --hud: rgb(20 24 32 / 0.82);
+  position: fixed; inset: 0; background: #000; color: #EDEFF3; overflow: hidden;
+  --hud: rgb(21 24 30 / 0.72);
+  --hud-ink-2: #A3AAB8;
+  --hud-hover: rgb(255 255 255 / 0.1);
+  --hud-edge: inset 0 0 0 1px rgb(255 255 255 / 0.07);
 }
 .stage { position: absolute; inset: 0; }
 .stage canvas, .stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -261,43 +344,50 @@ body.idle .hud-top { translate: 0 -6px; }
 body.idle .hud-bottom { translate: 0 6px; }
 body.idle .player { cursor: none; }
 
+/* glass plates: 16 = 12 inner control + 4 padding */
+.player-title, #player-back, .stats, .hud-bottom > .seg, .hud-bottom > .tools {
+  background: var(--hud); box-shadow: var(--hud-edge), 0 8px 24px rgb(0 0 0 / 0.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
+}
 .player-title {
   display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto;
-  padding: 0 14px; height: 44px; border-radius: 12px; background: var(--hud);
+  padding: 0 16px 0 14px; height: 48px; border-radius: 16px;
   font: 600 17px/1 var(--font-din);
 }
 .player-title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lamp { width: 9px; height: 9px; border-radius: 50%; background: #6b7385; flex: none; }
-.player.live .lamp { background: var(--lamp); }
-#player-back { background: var(--hud); border-radius: 12px; }
+.lamp { width: 9px; height: 9px; border-radius: 50%; background: #5F6676; flex: none; transition-property: background-color, box-shadow; transition-duration: 200ms; }
+.player.live .lamp { background: #FFB61A; box-shadow: 0 0 0 3px rgb(255 182 26 / 0.22), 0 0 12px rgb(255 182 26 / 0.6); }
+#player-back { width: 48px; height: 48px; border-radius: 16px; }
+#player-back:hover { background: rgb(36 40 49 / 0.85); }
 
-.stats { display: flex; gap: 2px; margin: 0; padding: 4px; border-radius: 12px; background: var(--hud); }
+.stats { display: flex; gap: 2px; margin: 0; padding: 4px; border-radius: 16px; }
 .stats div { padding: 3px 10px; text-align: right; }
-.stats dt { font-size: 11px; line-height: 1.2; color: #a9b1c1; }
+.stats dt { font-size: 11px; line-height: 1.2; color: var(--hud-ink-2); }
 .stats dd { margin: 0; font: 600 15px/1.25 var(--font-din); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stats dd.warn { color: var(--lamp); }
+.stats dd.warn { color: #FFB61A; }
 
-.hud-bottom > .seg, .hud-bottom > .tools { background: var(--hud); border-radius: 14px; padding: 4px; }
+.hud-bottom > .seg, .hud-bottom > .tools { border-radius: 16px; padding: 4px; }
 .seg { display: flex; gap: 2px; }
 .seg button {
-  min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: #c9d0dc; font-weight: 600;
+  min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: transparent; color: #C9CFDA; font-weight: 600;
   transition-property: background-color, color;
   transition-duration: 150ms;
 }
-.seg button:hover { color: #fff; }
-.seg button[aria-checked="true"] { background: #eef1f6; color: #1d2433; }
-.tools { display: flex; align-items: center; gap: 4px; }
+.seg button:hover { color: #fff; background: var(--hud-hover); }
+.seg button[aria-checked="true"] { background: #EDEFF3; color: #141821; }
+.tools { display: flex; align-items: center; gap: 2px; }
 .tools .icon-btn { width: 40px; height: 40px; }
+.tools .icon-btn:hover { background: var(--hud-hover); }
 .tools .icon-btn::after { content: ""; position: absolute; inset: -2px; }
 .tools [hidden] { display: none; }
-.rec-time { display: none; font: 600 15px/1 var(--font-din); font-variant-numeric: tabular-nums; color: #eef1f6; }
-.tools .rec-btn.on { display: inline-flex; gap: 6px; width: auto; padding: 0 12px 0 9px; color: var(--rec); }
+.rec-time { display: none; font: 600 15px/1 var(--font-din); font-variant-numeric: tabular-nums; color: #EDEFF3; }
+.tools .rec-btn.on { display: inline-flex; gap: 6px; width: auto; padding: 0 12px 0 9px; color: #FF5F52; background: rgb(255 95 82 / 0.14); }
 .rec-btn.on .rec-time { display: inline; }
 .rec-btn.on .fill-on { fill: currentColor; }
-#ontop[aria-pressed="true"] { color: var(--lamp); }
+#ontop[aria-pressed="true"] { color: #FFB61A; }
 #ontop[aria-pressed="true"] .fill-on { fill: currentColor; }
 .volume { display: flex; align-items: center; }
-.volume input { width: 92px; margin: 0 8px 0 2px; accent-color: #eef1f6; }
+.volume input { width: 92px; margin: 0 8px 0 2px; accent-color: #EDEFF3; }
 
 .swap { position: absolute; transition-property: opacity, scale, filter; transition-duration: 200ms; transition-timing-function: var(--ease); }
 .swap.off { opacity: 0; scale: 0.25; filter: blur(4px); }
@@ -305,25 +395,32 @@ body.idle .player { cursor: none; }
 .is-off > .swap.off { opacity: 1; scale: 1; filter: none; }
 
 .chip {
-  position: absolute; top: 68px; left: 50%; translate: -50% 0;
+  position: absolute; top: 72px; left: 50%; translate: -50% 0;
   display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px 0 12px;
-  border: 0; border-radius: 20px; background: var(--lamp); color: #1d2433; font-weight: 600;
+  border: 0; border-radius: 20px; background: #FFB61A; color: #141821; font-weight: 600;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
 }
 .chip .icon { width: 20px; height: 20px; }
 .chip[hidden], .overlay[hidden] { display: none; }
 
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 0.55); }
-.overlay-box { max-width: 420px; padding: 24px; border-radius: 18px; background: #232a37; text-align: center; }
+.overlay-box {
+  max-width: 420px; padding: 28px 28px 24px; border-radius: 20px; text-align: center;
+  background: #1D2129; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 24px 60px rgb(0 0 0 / 0.5);
+}
 .overlay-title { font: 600 22px/1.25 var(--font-din); margin-bottom: 6px; text-wrap: balance; }
-.overlay-text { color: #b8c0ce; font-variant-numeric: tabular-nums; }
-.overlay-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.overlay-text { color: var(--hud-ink-2); font-variant-numeric: tabular-nums; }
+.overlay-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .overlay-actions button[hidden] { display: none; }
-.player .secondary { background: #303849; color: #eef1f6; box-shadow: none; }
-.player .secondary:hover { background: #3a4357; }
+.player .primary { background: #FFB61A; color: #141821; }
+.player .primary:hover { background: #F0A500; }
+.player .secondary { background: #262B35; color: #EDEFF3; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06); }
+.player .secondary:hover { background: #313744; }
 
 .toast {
-  position: absolute; left: 50%; bottom: 84px; translate: -50% 8px;
-  padding: 10px 16px; border-radius: 12px; background: #eef1f6; color: #1d2433; font-weight: 600;
+  position: absolute; left: 50%; bottom: 88px; translate: -50% 8px;
+  padding: 10px 16px; border-radius: 12px; background: #EDEFF3; color: #141821; font-weight: 600;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
   opacity: 0; pointer-events: none;
   transition-property: opacity, translate;
   transition-duration: 200ms;
@@ -342,7 +439,7 @@ body[data-screen="loading"] { visibility: hidden; }
 }
 @media (max-width: 380px) {
   .cells { gap: 6px; }
-  .cells span { height: 56px; font-size: 32px; }
+  .cells span { height: 58px; font-size: 34px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation: none !important; }

@@ -140,7 +140,7 @@ try {
   check(rows === 1, `FakePhone listed once (${rows}), though it answers through every adapter of this PC`);
 
   const dark = await cdp.eval(`matchMedia('(prefers-color-scheme: dark)').matches`);
-  const paper = dark ? [0x1e, 0x24, 0x30] : [0xe9, 0xec, 0xf1];
+  const paper = dark ? [0x15, 0x18, 0x1e] : [0xee, 0xf0, 0xf3];
   win(a.proc.pid, 'topmost', { On: 1 });   // test-side, only so nothing covers the title bar for the pixel probe
   await sleep(400);
   let w = win(a.proc.pid, 'probe');

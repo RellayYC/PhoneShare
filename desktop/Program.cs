@@ -111,12 +111,13 @@ namespace PhoneShare
     sealed class MainForm : Form
     {
         const int MinW = 420, MinH = 560;   // the web UI is laid out down to 375 px
-        static readonly Color PaperLight = Color.FromArgb(0xE9, 0xEC, 0xF1), PaperDark = Color.FromArgb(0x1E, 0x24, 0x30);
-        static readonly Color SurfaceLight = Color.FromArgb(0xF7, 0xF8, 0xFA), SurfaceDark = Color.FromArgb(0x27, 0x2E, 0x3C);
-        static readonly Color InkLight = Color.FromArgb(0x1D, 0x24, 0x33), InkDark = Color.FromArgb(0xE6, 0xE9, 0xEF);
-        static readonly Color Ink2Light = Color.FromArgb(0x56, 0x60, 0x74), Ink2Dark = Color.FromArgb(0xA0, 0xA9, 0xBA);
-        static readonly Color LineLight = Color.FromArgb(0xCF, 0xD5, 0xDE), LineDark = Color.FromArgb(0x39, 0x42, 0x54);
-        static readonly Color Lamp = Color.FromArgb(0xF2, 0xA9, 0x00), LampPress = Color.FromArgb(0xD9, 0x98, 0x00);
+        // the page's palette (web/style.css); dev/check-palette.mjs keeps the two equal
+        static readonly Color PaperLight = Color.FromArgb(0xEE, 0xF0, 0xF3), PaperDark = Color.FromArgb(0x15, 0x18, 0x1E);
+        static readonly Color SurfaceLight = Color.FromArgb(0xFF, 0xFF, 0xFF), SurfaceDark = Color.FromArgb(0x1D, 0x21, 0x29);
+        static readonly Color InkLight = Color.FromArgb(0x14, 0x18, 0x21), InkDark = Color.FromArgb(0xED, 0xEF, 0xF3);
+        static readonly Color Ink2Light = Color.FromArgb(0x5B, 0x62, 0x72), Ink2Dark = Color.FromArgb(0x9C, 0xA3, 0xB1);
+        static readonly Color LineLight = Color.FromArgb(0xDC, 0xE0, 0xE6), LineDark = Color.FromArgb(0x31, 0x37, 0x44);
+        static readonly Color Lamp = Color.FromArgb(0xF4, 0xAE, 0x00), LampPress = Color.FromArgb(0xDB, 0x9C, 0x00);
         const string WebView2Download = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";   // official Evergreen bootstrapper
 
         readonly string home = Program.Home;
